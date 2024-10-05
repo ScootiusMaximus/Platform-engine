@@ -30,6 +30,12 @@ class Images:
         self.body = pygame.image.load("body.png")
         self.enemyBody = pygame.image.load("enemy_body.png")
         self.star = pygame.image.load("star.png")
+        blank = pygame.image.load("enemy_body.png")
+        pygame.draw.circle(blank,colour.white,(20,15),10)
+        pygame.draw.circle(blank,colour.black,(20,16),7)
+        pygame.draw.circle(blank,colour.white,(22,17),2)
+        pygame.draw.circle(blank,colour.black,(20,18),1)
+        self.enemyForEditor = blank
         
 
 class Level_slots:
@@ -86,6 +92,7 @@ class Game:
 
         self.player = None
         self.editor = Editor()
+        self.img = Images()
 
         self.UP = [pygame.K_UP,pygame.K_w,pygame.K_SPACE]
         self.LEFT = [pygame.K_LEFT,pygame.K_a]
@@ -103,11 +110,13 @@ class Game:
         self.fanBases = []
         self.fanColumns = []
         self.mobs = []
+        self.entities = []
 
         self.load()
         self.update_level()
 
     def trigger_death(self):
+        self.update_level(next=False) # lazy, only need to change entity positions
         self.player.xpos,self.player.ypos = self.data[str(self.levelIDX)]["start"]
         self.player.yvel = 0
         self.player.xvel = 0
@@ -122,6 +131,14 @@ class Game:
     def save(self):
         with open("levels.json","w") as file:
             file.write(json.dumps(self.data))
+
+    def tick_enemies(self):
+        for mob in self.entities:
+            mob.tick()
+            mob.update_hitboxes()
+            mob.draw()
+            mob.update_target((self.player.xpos,self.player.ypos))
+            mob.pathfind()
             
     def tick_player(self):
 ##        self.player.wallData = self.player.check()
@@ -193,6 +210,8 @@ class Game:
 ##        playerBox = get_actual_pos([self.player.xpos,self.player.ypos,50,50])
 ##        playerRect = pygame.Rect(self.player.xpos-25,self.player.ypos-25,50,50)
         self.player.wallData = [False,False,False,False,False]
+        for mob in self.entities:
+            mob.wallData = [False,False,False,False,False]
 
         for item in self.platforms:
             compItem = toRect(get_actual_pos(item))
@@ -207,8 +226,7 @@ class Game:
             if pygame.Rect.colliderect(self.player.hitbox.actWhole,compItem):
                 self.player.wallData[4] = True
 
-            for mob in self.mobs:
-                mob.wallData = [False,False,False,False,False]
+            for mob in self.entities:
                 if pygame.Rect.colliderect(mob.hitbox.actBottom,compItem):
                     mob.wallData[0] = True
                 if pygame.Rect.colliderect(mob.hitbox.actLeft,compItem):
@@ -226,9 +244,9 @@ class Game:
             if pygame.Rect.colliderect(self.player.hitbox.actWhole,spike):
                 self.trigger_death()
                 break
-            for mob in self.mobs:
+            for mob in self.entities:
                 if pygame.Rect.colliderect(mob.hitbox.actWhole,spike):
-                    self.mobs.remove(mob)
+                    self.entities.remove(mob)
                 
 
         for which in [self.fanBases,self.fanColumns]:
@@ -248,6 +266,10 @@ class Game:
     def correct_player(self):     
         if self.player.wallData[0] and self.player.yvel==0:
             self.player.ypos = ((self.player.ypos//50)*50)+31
+
+        for enemy in self.entities:
+            if enemy.wallData[0] and enemy.yvel==0:
+                enemy.ypos = ((enemy.ypos//50)*50)+20
             
         if self.player.wallData[3]: # top
             self.player.yvel = 0
@@ -262,9 +284,27 @@ class Game:
         self.fanBases = []
         self.fanColumns = []
         self.stars = []
+        self.mobs = []
+        self.entities = []
 
         try:
-            self.data[str(self.levelIDX)]
+            if "start" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["start"] = [0,0]
+            if "end" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["end"] = [300,0]
+            if "platforms" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["platforms"] = [[-100,50,500,50]]
+            if "spikes" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["spikes"] = []
+            if "fan bases" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["fan bases"] = []
+            if "fan columns" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["fan columns"] = []
+            if "stars" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["stars"] = []
+            if "mobs" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["mobs"] = []
+            
         except KeyError:
             self.data[str(self.levelIDX)] = {
                 "start":[0,0],
@@ -296,6 +336,9 @@ class Game:
             self.fanColumns.append([item[0],item[1]])
         for item in self.data[str(self.levelIDX)]["stars"]:
             self.stars.append([item[0],item[1]])
+        for item in self.data[str(self.levelIDX)]["mobs"]:
+            self.mobs.append([item[0],item[1]])
+            self.entities.append(Enemy(item[0],item[1],img=self.img.enemyBody))
         
 
     def draw_bg(self):
@@ -314,6 +357,10 @@ class Game:
             sendToCam(item,"fan column")
         for item in self.data[str(self.levelIDX)]["stars"]:
             sendToCam(item,"star")
+        if self.scene == "editor":
+            for item in self.data[str(self.levelIDX)]["mobs"]:
+                blitToCam(self.img.enemyForEditor,item)
+                
 
     def draw_grid(self):
         for i in range((SCRW//50)+2):
@@ -337,12 +384,14 @@ class Game:
         # spike icon
         pygame.draw.rect(SCREEN,colour.green,(20,135,30,30))
         # end placeholder
-        SCREEN.blit(img.fanBase,(10,180))
+        SCREEN.blit(self.img.fanBase,(10,180))
         # fan base image
-        SCREEN.blit(img.fanColumn,(10,245))
+        SCREEN.blit(self.img.fanColumn,(10,245))
         # fan column
-        SCREEN.blit(img.star,(10,305))
+        SCREEN.blit(self.img.star,(10,305))
         # fan column
+        SCREEN.blit(self.img.enemyForEditor,(15,370))
+        # enemy 
 
     def check_selected(self):
         mouseRect = toRect(self.editor.mouseRect)
@@ -360,8 +409,12 @@ class Game:
         self.editor.mouseRect[0],self.editor.mouseRect[1] = pygame.mouse.get_pos()
         pygame.draw.rect(SCREEN,colour.red,self.editor.mouseRect)
 
+        mouseData = pygame.mouse.get_pressed()
+
         self.editor.clicks[1] = self.editor.clicks[0]
-        self.editor.clicks[0] = pygame.mouse.get_pressed()[0]
+        self.editor.clicks[0] = mouseData[0]
+        self.editor.clicksR[1] = self.editor.clicksR[0]
+        self.editor.clicksR[0] = mouseData[2]
 
         newMouseRect = get_actual_pos(self.editor.mouseRect)
         
@@ -401,76 +454,66 @@ class Game:
                             self.data[str(self.levelIDX)]["platforms"].remove(item)
                         except ValueError:
                             pass
-                        
-        elif self.editor.selected == "spike":
-            if self.editor.clicks == [True,False]: # LMB pressed
+        else:
+            if self.editor.clicks == [True,False]: # LMB
                 realx,realy = pygame.mouse.get_pos()
                 screenCoords = get_actual_pos((realx,realy,0,0))
-                newSpike = [(screenCoords[0]//50)*50, ((screenCoords[1]//50)+1)*50]
-                self.data[str(self.levelIDX)]["spikes"].append(newSpike)
+                truncPos = [(screenCoords[0]//50)*50, (screenCoords[1]//50)*50]                
+            
+                if self.editor.selected == "spike":
+                    newSpike = [truncPos[0],truncPos[1]+50]
+                    self.data[str(self.levelIDX)]["spikes"].append(newSpike)
+
+                elif self.editor.selected == "end":
+                    self.data[str(self.levelIDX)]["end"] = truncPos
+
+                elif self.editor.selected == "fan base":
+                    self.data[str(self.levelIDX)]["fan bases"].append(truncPos)
+
+                elif self.editor.selected == "fan column":
+                    self.data[str(self.levelIDX)]["fan columns"].append(truncPos)
+
+                elif self.editor.selected == "star":
+                    self.data[str(self.levelIDX)]["stars"].append(truncPos)
+
+                elif self.editor.selected == "enemy":
+                    self.data[str(self.levelIDX)]["mobs"].append(truncPos)
+
                 self.update_level(next=False)
                 
-            if pygame.mouse.get_pressed()[2]: # RMB
+                
+            if self.editor.clicksR == [True,False]: #RMB
                 for item in self.spikes:
                     if pygame.Rect.colliderect(toRect(newMouseRect),spike_convert(item)):
                         self.data[str(self.levelIDX)]["spikes"].remove(item)
-                        self.update_level(next=False)
-                        break
-
-        elif self.editor.selected == "end":
-            if self.editor.clicks == [True,False]: # LMB
-                realx,realy = pygame.mouse.get_pos()
-                screenCoords = get_actual_pos((realx,realy,0,0))
-                self.data[str(self.levelIDX)]["end"] = [(screenCoords[0]//50)*50, (screenCoords[1]//50)*50]
- 
-
-        elif self.editor.selected == "fan base":
-            if self.editor.clicks == [True,False]: # LMB
-                realx,realy = pygame.mouse.get_pos()
-                screenCoords = get_actual_pos((realx,realy,0,0))
-                truncPos = [(screenCoords[0]//50)*50, (screenCoords[1]//50)*50]
-                self.data[str(self.levelIDX)]["fan bases"].append(truncPos)
-                self.update_level(next=False)
-            elif pygame.mouse.get_pressed()[2]:
-                # RMB
+                        
                 for item in self.fanBases:
                     if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
                         self.data[str(self.levelIDX)]["fan bases"].remove(item)
                         self.fanBases.remove(item)
 
-        elif self.editor.selected == "fan column":
-            if self.editor.clicks == [True,False]: # LMB
-                realx,realy = pygame.mouse.get_pos()
-                screenCoords = get_actual_pos((realx,realy,0,0))
-                truncPos = [(screenCoords[0]//50)*50, (screenCoords[1]//50)*50]
-                self.data[str(self.levelIDX)]["fan columns"].append(truncPos)
-                self.update_level(next=False)
-            elif pygame.mouse.get_pressed()[2]:
-                # RMB
                 for item in self.fanColumns:
                     if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
                         self.data[str(self.levelIDX)]["fan columns"].remove(item)
                         self.fanColumns.remove(item)
 
-        elif self.editor.selected == "star":
-            if self.editor.clicks == [True,False]: # LMB
-                realx,realy = pygame.mouse.get_pos()
-                screenCoords = get_actual_pos((realx,realy,0,0))
-                truncPos = [(screenCoords[0]//50)*50, (screenCoords[1]//50)*50]
-                self.data[str(self.levelIDX)]["stars"].append(truncPos)
-                self.update_level(next=False)
-            elif pygame.mouse.get_pressed()[2]:
-                # RMB
                 for item in self.stars:
                     if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
                         self.data[str(self.levelIDX)]["stars"].remove(item)
                         self.stars.remove(item)
 
+                for item in self.mobs:
+                    if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
+                        self.data[str(self.levelIDX)]["mobs"].remove(item)
+                        self.mobs.remove(item)
+
+                self.update_level(next=False)          
 
 class Editor:
     '''a namespace to hold editor data'''
     def __init__(self):
         self.clicks = [False,False]
+        self.clicksR = [False,False]
         self.pendingRect = [0,0,0,0]
         self.endRect = None
         self.mouseRect = [0,0,3,3]
@@ -478,7 +521,7 @@ class Editor:
         self.selected = "platform"
 
         self.itemRects = []
-        self.ref = ["platform","spike","end","fan base","fan column","star"]
+        self.ref = ["platform","spike","end","fan base","fan column","star","enemy"]
 
         for i in range(10):
             y = i*60
@@ -613,7 +656,7 @@ class Enemy:
         self.maxYvel = maxYvel
         self.gravity = gravity
         self.target = []
-        self.maxTargetDist = 1000
+        self.maxTargetDist = 500
         self.img = img
         self.needsDel = False
         self.wallData = [False,False,False,False,False]
@@ -629,7 +672,22 @@ class Enemy:
                 #print("<")
 
     def draw(self):
-        SCREEN.blit(self.img,((SCRW//2)-player.xpos+self.xpos-20,(SCRH//2)-player.ypos+self.ypos-10))
+        blitToCam(self.img,(self.xpos-20,self.ypos-10))
+        pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-player.xpos+self.xpos,(SCRH//2)+5-player.ypos+self.ypos),10)
+        if self.xvel == 0:        
+                pygame.draw.circle(SCREEN,colour.black,(SCRW//2-player.xpos+self.xpos,(SCRH//2)+5-player.ypos+self.ypos),7)
+                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)+2-player.xpos+self.xpos,(SCRH//2)+6-player.ypos+self.ypos),2)
+                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-player.xpos+self.xpos,(SCRH//2)+7-player.ypos+self.ypos),1)
+
+        else:
+            if self.xvel < 0:
+                pygame.draw.circle(SCREEN,colour.black,((SCRW//2)-3-player.xpos+self.xpos,(SCRH//2)+5-player.ypos+self.ypos),7)
+                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-1-player.xpos+self.xpos,(SCRH//2)+6-player.ypos+self.ypos),2)
+                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-3-player.xpos+self.xpos,(SCRH//2)+7-player.ypos+self.ypos),1)
+            elif self.xvel > 0:
+                pygame.draw.circle(SCREEN,colour.black,((SCRW//2)+3-player.xpos+self.xpos,(SCRH//2)+5-player.ypos+self.ypos),7)
+                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)+5-player.xpos+self.xpos,(SCRH//2)+6-player.ypos+self.ypos),2)
+                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)+3-player.xpos+self.xpos,(SCRH//2)+7-player.ypos+self.ypos),1)
 
     def update_hitboxes(self):
         self.hitbox.whole = toRect([self.xpos-20,self.ypos-19,40,40])
@@ -649,9 +707,6 @@ class Enemy:
             self.yvel += self.gravity
         else:
             self.yvel = 0
-            
-        self.xpos += self.xvel
-        self.ypos += self.yvel
 
         if self.xvel > self.maxXvel:
             self.xvel = self.maxXvel
@@ -663,7 +718,8 @@ class Enemy:
         elif self.wallData[2] and self.xvel > 0:
             self.xvel = 0
 
-        #self.xvel = self.xvel * 0.8
+        self.xpos += self.xvel
+        self.ypos += self.yvel
 
     def update_target(self,pos):
         self.target = list(pos)
@@ -732,9 +788,9 @@ def sendToCam(item,name=None,col=None):
             pygame.draw.rect(SCREEN,col,newRect)
         else:
             pygame.draw.rect(SCREEN,colour.white,newRect,width=2)
-                
-    elif isinstance(item,pygame.surface.Surface):
-        SCREEN.blit(item,((SCRW//2)-player.xpos,(SCRH//2)-player.ypos))
+
+def blitToCam(item,pos):
+    SCREEN.blit(item,((SCRW//2)-player.xpos+pos[0],(SCRH//2)-player.ypos+pos[1]))
                                    
 
 def get_screen_pos(thing):
@@ -849,8 +905,8 @@ player = Player(game.gravity,img=img.body)#,maxXvel = 1000, maxYvel = 1000) # he
 game.player = player
 levelSlots = Level_slots(len(game.data))
 
-testEnemy = Enemy(200,0,img=img.enemyBody)
-game.mobs.append(testEnemy)
+##testEnemy = Enemy(200,0,img=img.enemyBody)
+##game.mobs.append(testEnemy)
 
 ##################################################
 
@@ -865,14 +921,8 @@ while True:
 
     if game.scene == "ingame":
         SCREEN.fill(game.bgCol)
-        
-##        testEnemy.tick()
-##        testEnemy.update_hitboxes()
-##        testEnemy.draw()
-##        testEnemy.update_target((player.xpos,player.ypos))
-##        testEnemy.pathfind()
-        
         game.draw_bg()
+        game.tick_enemies()
         game.tick()
         game.tick_player()
         game.correct_player()
@@ -902,6 +952,7 @@ while True:
         mapped = get_actual_pos(mpos)
         acx,acy = ((mapped[0]//50)*50,(mapped[1]//50)*50)
         coordBox.update_message(( str(acx) + "," + str(acy) ))
+        
         game.draw_grid()
         game.draw_bg()           
         game.check_selected()
