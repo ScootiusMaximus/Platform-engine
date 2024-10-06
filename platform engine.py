@@ -112,6 +112,8 @@ class Game:
         self.mobs = []
         self.entities = []
 
+        self.animations = []
+
         self.load()
         self.update_level()
 
@@ -142,6 +144,7 @@ class Game:
             
     def tick_player(self):
 ##        self.player.wallData = self.player.check()
+        self.player.lastYvel = self.player.yvel
         if not self.player.wallData[0]:
             if abs(self.player.yvel) > self.player.maxYvel:
                 self.player.yvel = self.player.maxYvel
@@ -185,6 +188,7 @@ class Game:
 
         self.player.xpos += self.player.xvel
         self.player.ypos += self.player.yvel
+
 
         #self.player.wallData = [False,False,False]
 
@@ -247,6 +251,7 @@ class Game:
             for mob in self.entities:
                 if pygame.Rect.colliderect(mob.hitbox.actWhole,spike):
                     self.entities.remove(mob)
+                    self.animations.append(Impact_Particle(mob.xpos,mob.ypos+14,colour.red))
                 
 
         for which in [self.fanBases,self.fanColumns]:
@@ -263,13 +268,33 @@ class Game:
                     toRect(get_actual_pos([end[0],end[1],50,50]))):
             self.player.atFinish = True
 
+    def draw_animations(self):
+        toDel = []
+        for item in self.animations:
+            if item.finished:
+                toDel.append(item)
+
+        for item in toDel:
+            self.animations.remove(item)
+
+        for item in self.animations:
+            item.tick()
+            item.draw()
+            
+
     def correct_player(self):     
-        if self.player.wallData[0] and self.player.yvel==0:
+        if self.player.wallData[0] and self.player.yvel == 0:
             self.player.ypos = ((self.player.ypos//50)*50)+31
+            if self.player.lastYvel != 0:
+                self.animations.append(Impact_Particle(self.player.xpos,self.player.ypos+14,colour.darkgrey))
+                #print("heh")
 
         for enemy in self.entities:
-            if enemy.wallData[0] and enemy.yvel==0:
-                enemy.ypos = ((enemy.ypos//50)*50)+20
+            if enemy.wallData[0] and enemy.yvel == 0:
+                enemy.ypos = ((enemy.ypos//50)*50)+21
+                if enemy.lastYvel != 0:
+                    self.animations.append(Impact_Particle(enemy.xpos,enemy.ypos+14,colour.darkgrey))
+                    #print(f"last:{enemy.lastYvel} now {enemy.yvel}")
             
         if self.player.wallData[3]: # top
             self.player.yvel = 0
@@ -286,6 +311,8 @@ class Game:
         self.stars = []
         self.mobs = []
         self.entities = []
+
+        self.animations = []
 
         try:
             if "start" not in self.data[str(self.levelIDX)]:
@@ -359,7 +386,7 @@ class Game:
             sendToCam(item,"star")
         if self.scene == "editor":
             for item in self.data[str(self.levelIDX)]["mobs"]:
-                blitToCam(self.img.enemyForEditor,item)
+                blitToCam(self.img.enemyForEditor,(item[0]+5,item[1]+5))
                 
 
     def draw_grid(self):
@@ -548,6 +575,7 @@ class Player:
         self.ypos = 0
         self.xvel = 0
         self.yvel = 0
+        self.lastYvel = 0
         self.maxYvel = maxYvel
         self.maxXvel = maxXvel
         self.img = img
@@ -651,6 +679,7 @@ class Enemy:
         self.ypos = ypos
         self.xvel = 0
         self.yvel = 0
+        self.lastYvel = 0
         self.xInc = 1
         self.maxXvel = maxXvel
         self.maxYvel = maxYvel
@@ -670,6 +699,8 @@ class Enemy:
             elif self.target[0] < self.xpos:
                 self.xvel -= self.xInc
                 #print("<")
+        else:
+            self.xvel = self.xvel * 0.8
 
     def draw(self):
         blitToCam(self.img,(self.xpos-20,self.ypos-10))
@@ -703,6 +734,7 @@ class Enemy:
         self.hitbox.actRight = toRect(get_actual_pos([self.xpos+15,self.ypos-20,5,39]))
 
     def tick(self):
+        self.lastYvel = self.yvel
         if not self.wallData[0]:
             self.yvel += self.gravity
         else:
@@ -720,6 +752,7 @@ class Enemy:
 
         self.xpos += self.xvel
         self.ypos += self.yvel
+        
 
     def update_target(self,pos):
         self.target = list(pos)
@@ -731,6 +764,55 @@ class Enemy:
         dx = pos[0] - self.xpos
         dy = pos[1] - self.ypos
         return math.atan2(dy/dx)
+
+
+class Animation:
+    def __init__(self,xpos,ypos):
+        self.frame = 0
+        self.interval = 100
+        self.xpos = xpos
+        self.ypos = ypos
+        self.finished = False
+        self.lastChange = pygame.time.get_ticks()
+
+    def tick(self):
+        if now() - self.lastChange > self.interval:
+            self.frame += 1
+            self.lastChange = now()
+            
+
+class Impact_Particle(Animation):
+    def __init__(self,xpos,ypos,col):
+        super().__init__(xpos,ypos)
+        self.interval = 50
+        self.col = col
+        self.name = "impact"
+        self.size = 15
+
+    def draw(self):
+        if self.frame == 0:
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos,self.ypos,self.size,self.size]))
+        elif self.frame == 1:
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+5,self.ypos-5,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-6,self.ypos-3,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+1,self.ypos,self.size,self.size]))
+        elif self.frame == 2:
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+10,self.ypos-7,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-12,self.ypos-6,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+2,self.ypos-10,self.size,self.size]))
+        elif self.frame == 3:
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+15,self.ypos-5,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-18,self.ypos-3,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+3,self.ypos-4,self.size,self.size]))
+        elif self.frame == 4:
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+18,self.ypos-1,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-22,self.ypos-1,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+3,self.ypos-1,self.size,self.size]))
+        elif self.frame >= 5:
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+18,self.ypos-1,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-22,self.ypos-1,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+3,self.ypos-1,self.size,self.size]))
+            self.finished = True
 
         
 
@@ -928,6 +1010,7 @@ while True:
         game.correct_player()
         game.player.update_hitboxes()
         game.player.draw()
+        game.draw_animations()
         
         if game.player.ypos > 5000 or game.player.isDead:
             game.trigger_death()
