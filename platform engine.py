@@ -100,6 +100,8 @@ class Game:
         self.DOWN = [pygame.K_DOWN,pygame.K_s]
         self.RESTART = [pygame.K_r]
 
+        self.enableMovement = True
+
         self.data = {} # the whole json file
         self.levelIDX = 1
 
@@ -117,14 +119,30 @@ class Game:
         self.load()
         self.update_level()
 
-    def trigger_death(self):
-        self.update_level(next=False) # lazy, only need to change entity positions
-        self.player.xpos,self.player.ypos = self.data[str(self.levelIDX)]["start"]
-        self.player.yvel = 0
-        self.player.xvel = 0
-        self.player.isDead = False
-        self.player.atFinish = False
-        self.restart = False
+    def trigger_death(self,die=True):
+        if die:
+            self.player.isDead = True
+            if(not self.player.lastIsDead) and self.player.isDead:
+                self.animations.append(Death_Particle(self.player.xpos,self.player.ypos+14,self.player.colour))
+                self.enableMovement = False
+                
+        if not self.contains_animation("death"):
+            self.update_level(next=False) # lazy, only need to change entity positions
+            self.player.xpos,self.player.ypos = self.data[str(self.levelIDX)]["start"]
+            self.player.yvel = 0
+            self.player.xvel = 0
+            self.player.isDead = False
+            self.player.atFinish = False
+            self.enableMovement = True
+            self.restart = False
+
+    def contains_animation(self,name):
+        found = False
+        for item in self.animations:
+            if item.name == name:
+                found = True
+                break
+        return found        
 
     def load(self):
         with open("levels.json","r") as file:
@@ -144,6 +162,7 @@ class Game:
             
     def tick_player(self):
 ##        self.player.wallData = self.player.check()
+        self.player.lastIsDead = self.player.isDead
         self.player.lastYvel = self.player.yvel
         if not self.player.wallData[0]:
             if abs(self.player.yvel) > self.player.maxYvel:
@@ -204,10 +223,6 @@ class Game:
                 self.player.blinkWait = 100
 
     def tick(self):
-        if self.player.atFinish:
-            self.next_level()
-            self.trigger_death()
-
         if self.restart:
             self.trigger_death()
             
@@ -267,6 +282,10 @@ class Game:
         if pygame.Rect.colliderect(self.player.hitbox.actWhole,
                     toRect(get_actual_pos([end[0],end[1],50,50]))):
             self.player.atFinish = True
+
+        for mob in self.entities:
+            if pygame.Rect.colliderect(mob.hitbox.actWhole,self.player.hitbox.actWhole):
+                self.trigger_death()
 
     def draw_animations(self):
         toDel = []
@@ -582,14 +601,18 @@ class Player:
         self.xInc = 1
         self.gravity = gravity
         self.isDead = False
+        self.lastIsDead = False
         self.atFinish = False
-        self.colour = (0,68,213)
         self.lastBlink = 0
         self.isBlinking = False
         self.blinkWait = random.randint(3,6) * 1000
         self.move = [False,False,False,False]
         self.wallData = [False,False,False,False,False]
         self.hitbox = Mob_Hitbox()
+        if self.img == None:
+            self.colour = (0,68,213)
+        else:
+            self.colour = self.img.get_at((20,20))
         #self.update_hitboxes()
 ##        self.rect = pygame.Rect(self.player.xpos-25,self.player.ypos-25,50,50)
 
@@ -814,8 +837,51 @@ class Impact_Particle(Animation):
             pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+3,self.ypos-1,self.size,self.size]))
             self.finished = True
 
-        
+class Death_Particle(Animation):
+    def __init__(self,xpos,ypos,col):
+        super().__init__(xpos,ypos)
+        self.interval = 50
+        self.col = col
+        self.name = "death"
+        self.size = 20
 
+    def draw(self):
+        if self.frame == 0:
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size,self.ypos-self.size,self.size*2,self.size*2]))
+        elif self.frame == 1:
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size-10,self.ypos-self.size-20,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+8,self.ypos-self.size-24,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+2,self.ypos-self.size-2,self.size,self.size]))
+        elif self.frame == 2:
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size-18,self.ypos-self.size-31,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+15,self.ypos-self.size-35,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+3,self.ypos-self.size-1,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size,self.ypos-self.size,self.size,self.size]))
+        elif self.frame == 3:
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size-24,self.ypos-self.size-24,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+20,self.ypos-self.size-28,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+3,self.ypos-self.size-1,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size,self.ypos-self.size,self.size,self.size]))
+        elif self.frame == 4:
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size-30,self.ypos-self.size-10,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+25,self.ypos-self.size-8,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+3,self.ypos-self.size,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+1,self.ypos-self.size,self.size,self.size]))
+        elif self.frame == 5:
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size-35,self.ypos-self.size-5,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+28,self.ypos-self.size-1,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+3,self.ypos-self.size-1,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+1,self.ypos-self.size,self.size,self.size]))
+        elif self.frame >= 6:
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size-40,self.ypos-self.size-1,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+31,self.ypos-self.size-1,self.size,self.size]))
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+3,self.ypos-self.size-1,self.size,self.size]))         
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+1,self.ypos-self.size-1,self.size,self.size]))
+        if self.frame >= 10:
+            self.finished = True
+
+
+        
 ##################################################
 
 
@@ -944,7 +1010,7 @@ def now():
     return pygame.time.get_ticks()
 
 
-def handle_events():
+def handle_events(move):
     global SCRW,SCRH
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -958,16 +1024,18 @@ def handle_events():
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 go_quit()
-            elif event.key in game.UP:
-                player.move[0] = True
-            elif event.key in game.LEFT:
-                player.move[1] = True
-            elif event.key in game.RIGHT:
-                player.move[2] = True
-            elif event.key in game.DOWN:
-                player.move[3] = True
             elif event.key in game.RESTART:
                 game.restart = True
+                
+            if move:
+                if event.key in game.UP:
+                    player.move[0] = True
+                elif event.key in game.LEFT:
+                    player.move[1] = True
+                elif event.key in game.RIGHT:
+                    player.move[2] = True
+                elif event.key in game.DOWN:
+                    player.move[3] = True
                 
         elif event.type == pygame.KEYUP:
             if event.key in game.UP:
@@ -999,7 +1067,7 @@ while True:
     SCREEN.fill((200,200,250))
     clock.tick(TICKRATE)
 
-    handle_events()
+    handle_events(move=game.enableMovement)
 
     if game.scene == "ingame":
         SCREEN.fill(game.bgCol)
@@ -1009,14 +1077,15 @@ while True:
         game.tick_player()
         game.correct_player()
         game.player.update_hitboxes()
-        game.player.draw()
+        if game.enableMovement:
+            game.player.draw()
         game.draw_animations()
         
         if game.player.ypos > 5000 or game.player.isDead:
             game.trigger_death()
         if game.player.atFinish:
             game.update_level(next=True)
-            game.trigger_death()
+            game.trigger_death(die=False)
         levelIDXBox.update_message("Level " + str(game.levelIDX))
 
             
