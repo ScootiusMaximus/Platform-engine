@@ -13,6 +13,7 @@ SCRH = 600
 TICKRATE = 60
 
 pygame.init()
+pygame.mixer.init()
 SCREEN = pygame.display.set_mode((SCRW,SCRH),pygame.RESIZABLE)
 u.init(SCREEN)
 rgb = u.rainbow()
@@ -36,7 +37,26 @@ class Images:
         pygame.draw.circle(blank,colour.white,(22,17),2)
         pygame.draw.circle(blank,colour.black,(20,18),1)
         self.enemyForEditor = blank
+
+
+class Soundboard:
+    def __init__(self):
+        self.jump = pygame.mixer.Sound("jump.wav")
+        self.fall = pygame.mixer.Sound("fall.wav")
         
+        self.music = [
+            pygame.mixer.Sound("Track 1.wav")
+            ]
+
+        self.channels = [pygame.mixer.Channel(0)]
+        self.enabled = True
+
+    def start_fall(self):
+        self.channels[0].play(self.fall)
+
+    def end_fall(self):
+        self.channels[0].stop()
+
 
 class Level_slots:
     def __init__(self,num):
@@ -93,6 +113,7 @@ class Game:
         self.player = None
         self.editor = Editor()
         self.img = Images()
+        self.sound = Soundboard()
 
         self.UP = [pygame.K_UP,pygame.K_w,pygame.K_SPACE]
         self.LEFT = [pygame.K_LEFT,pygame.K_a]
@@ -125,6 +146,9 @@ class Game:
             if(not self.player.lastIsDead) and self.player.isDead:
                 self.animations.append(Death_Particle(self.player.xpos,self.player.ypos+14,self.player.colour))
                 self.enableMovement = False
+
+        self.player.xvel = 0
+        self.player.yvel = 0
                 
         if not self.contains_animation("death"):
             self.update_level(next=False) # lazy, only need to change entity positions
@@ -164,12 +188,12 @@ class Game:
 ##        self.player.wallData = self.player.check()
         self.player.lastIsDead = self.player.isDead
         self.player.lastYvel = self.player.yvel
+        
         if not self.player.wallData[0]:
             if abs(self.player.yvel) > self.player.maxYvel:
                 self.player.yvel = self.player.maxYvel
                 
             self.player.yvel += self.player.gravity
-                        
         else:
             self.player.yvel = 0
             
@@ -196,12 +220,15 @@ class Game:
         if self.player.move[0]: # wall jump 
             if self.player.wallData[0]:
                 self.player.yvel = -20
+                if self.sound.enabled: self.sound.jump.play()
             if self.player.wallData[1]:
                 self.player.yvel = -20
                 self.player.xvel = 10
+                if self.sound.enabled: self.sound.jump.play()
             if self.player.wallData[2]:
                 self.player.yvel = -20
                 self.player.xvel = -10
+                if self.sound.enabled: self.sound.jump.play()
             if self.player.wallData[2] and self.player.wallData[1]:
                 self.player.xvel = 0
 
@@ -813,29 +840,33 @@ class Impact_Particle(Animation):
         self.size = 15
 
     def draw(self):
+        rects = []
         if self.frame == 0:
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos,self.ypos,self.size,self.size]))
+            rects = [[self.xpos,self.ypos,self.size,self.size]]
         elif self.frame == 1:
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+5,self.ypos-5,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-6,self.ypos-3,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+1,self.ypos,self.size,self.size]))
+            rects = [[self.xpos+5,self.ypos-5,self.size,self.size],
+                     [self.xpos-6,self.ypos-3,self.size,self.size],
+                     [self.xpos+1,self.ypos,self.size,self.size]]
         elif self.frame == 2:
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+10,self.ypos-7,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-12,self.ypos-6,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+2,self.ypos-10,self.size,self.size]))
+            rects = [[self.xpos+10,self.ypos-7,self.size,self.size],
+                     [self.xpos-12,self.ypos-6,self.size,self.size],
+                     [self.xpos+2,self.ypos-10,self.size,self.size]]
         elif self.frame == 3:
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+15,self.ypos-5,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-18,self.ypos-3,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+3,self.ypos-4,self.size,self.size]))
+            rects = [[self.xpos+15,self.ypos-5,self.size,self.size],
+                     [self.xpos-18,self.ypos-3,self.size,self.size],
+                     [self.xpos+3,self.ypos-4,self.size,self.size]]
         elif self.frame == 4:
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+18,self.ypos-1,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-22,self.ypos-1,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+3,self.ypos-1,self.size,self.size]))
+            rects = [[self.xpos+18,self.ypos-1,self.size,self.size],
+                     [self.xpos-22,self.ypos-1,self.size,self.size],
+                     [self.xpos+3,self.ypos-1,self.size,self.size]]
         elif self.frame >= 5:
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+18,self.ypos-1,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-22,self.ypos-1,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos+3,self.ypos-1,self.size,self.size]))
+            rects = [[self.xpos+18,self.ypos-1,self.size,self.size],
+                     [self.xpos-22,self.ypos-1,self.size,self.size],
+                     [self.xpos+3,self.ypos-1,self.size,self.size]]
             self.finished = True
+
+        for item in rects:
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos(item))
 
 class Death_Particle(Animation):
     def __init__(self,xpos,ypos,col):
@@ -846,40 +877,43 @@ class Death_Particle(Animation):
         self.size = 20
 
     def draw(self):
+        rects = []
         if self.frame == 0:
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size,self.ypos-self.size,self.size*2,self.size*2]))
+            rects = [[self.xpos-self.size,self.ypos-self.size,self.size*2,self.size*2]]
         elif self.frame == 1:
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size-10,self.ypos-self.size-20,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+8,self.ypos-self.size-24,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+2,self.ypos-self.size-2,self.size,self.size]))
+            rects = [[self.xpos-self.size-10,self.ypos-self.size-20,self.size,self.size],
+                    [self.xpos-self.size+8,self.ypos-self.size-24,self.size,self.size],
+                    [self.xpos-self.size+2,self.ypos-self.size-2,self.size,self.size]]
         elif self.frame == 2:
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size-18,self.ypos-self.size-31,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+15,self.ypos-self.size-35,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+3,self.ypos-self.size-1,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size,self.ypos-self.size,self.size,self.size]))
+            rects = [[self.xpos-self.size-18,self.ypos-self.size-31,self.size,self.size],
+                    [self.xpos-self.size+15,self.ypos-self.size-35,self.size,self.size],
+                    [self.xpos-self.size+3,self.ypos-self.size-1,self.size,self.size],
+                    [self.xpos-self.size,self.ypos-self.size-20,self.size,self.size]]
         elif self.frame == 3:
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size-24,self.ypos-self.size-24,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+20,self.ypos-self.size-28,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+3,self.ypos-self.size-1,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size,self.ypos-self.size,self.size,self.size]))
+            rects = [[self.xpos-self.size-24,self.ypos-self.size-24,self.size,self.size],
+                    [self.xpos-self.size+20,self.ypos-self.size-28,self.size,self.size],
+                    [self.xpos-self.size+3,self.ypos-self.size-1,self.size,self.size],
+                    [self.xpos-self.size,self.ypos-self.size-50,self.size,self.size]]
         elif self.frame == 4:
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size-30,self.ypos-self.size-10,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+25,self.ypos-self.size-8,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+3,self.ypos-self.size,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+1,self.ypos-self.size,self.size,self.size]))
+            rects = [[self.xpos-self.size-30,self.ypos-self.size-10,self.size,self.size],
+                    [self.xpos-self.size+25,self.ypos-self.size-8,self.size,self.size],
+                    [self.xpos-self.size+3,self.ypos-self.size,self.size,self.size],
+                    [self.xpos-self.size+1,self.ypos-self.size-30,self.size,self.size]]
         elif self.frame == 5:
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size-35,self.ypos-self.size-5,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+28,self.ypos-self.size-1,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+3,self.ypos-self.size-1,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+1,self.ypos-self.size,self.size,self.size]))
+            rects = [[self.xpos-self.size-35,self.ypos-self.size-5,self.size,self.size],
+                    [self.xpos-self.size+28,self.ypos-self.size-1,self.size,self.size],
+                    [self.xpos-self.size+3,self.ypos-self.size-1,self.size,self.size],
+                    [self.xpos-self.size+1,self.ypos-self.size-5,self.size,self.size]]
         elif self.frame >= 6:
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size-40,self.ypos-self.size-1,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+31,self.ypos-self.size-1,self.size,self.size]))
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+3,self.ypos-self.size-1,self.size,self.size]))         
-            pygame.draw.rect(SCREEN,self.col,get_screen_pos([self.xpos-self.size+1,self.ypos-self.size-1,self.size,self.size]))
-        if self.frame >= 10:
+            rects = [[self.xpos-self.size-40,self.ypos-self.size-1,self.size,self.size],
+                    [self.xpos-self.size+31,self.ypos-self.size-1,self.size,self.size],
+                    [self.xpos-self.size+3,self.ypos-self.size-1,self.size,self.size],         
+                    [self.xpos-self.size+1,self.ypos-self.size-1,self.size,self.size]]
+        if self.frame >= 15:
             self.finished = True
 
+        for item in rects:
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos(item))
 
         
 ##################################################
@@ -887,13 +921,14 @@ class Death_Particle(Animation):
 
 titleBox = u.old_textbox("PLATFORM ENGINE",fontTitle,(SCRW//2,150),backgroundCol=None,tags=["menu"])
 startBox = u.old_textbox("PLAY",font28,(SCRW//2,400),tags=["menu"])
-menuBox = u.old_textbox("MENU",font18,(SCRW-35,20),tags=["ingame","editor","levels"])
+menuBox = u.old_textbox("MENU",font18,(SCRW-35,20),tags=["ingame","editor","levels","settings"])
 editorBox = u.old_textbox("EDITOR",font18,(SCRW//2,500),tags=["menu"])
 levelsBox = u.old_textbox("LEVELS",font18,(SCRW//2,300),tags=["menu"])
 selectedBox = u.old_textbox("",font18,(SCRW//2,60),tags=["editor"])
 coordBox = u.old_textbox("",font18,(SCRW//3,20),tags=["editor"])
 levelIDXBox = u.old_textbox("",font18,(SCRW//2,20),tags=["ingame","editor"])
-boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,levelsBox]
+settingsBox = u.old_textbox("SETTINGS",font18,(SCRW//1.3,500),tags=["menu"])
+boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,levelsBox,settingsBox]
 # hard coded textboxes
 
 ##################################################
@@ -969,6 +1004,7 @@ def repos_boxes():
     selectedBox.pos = (SCRW//2,60)
     coordBox.pos = (SCRW//3,20)
     levelIDXBox.pos = (SCRW//2,20)
+    settingsBox.pos = (SCRW//1.3,500)
 
 def tick_boxes():
     for item in boxes:
@@ -991,9 +1027,13 @@ def tick_boxes():
 
     if editorBox.isPressed():
         game.scene = "editor"
+        game.enableMovement = True
 
     if levelsBox.isPressed():
         game.scene = "levels"
+
+    if settingsBox.isPressed():
+        game.scene = "settings"
 
 
 def spike_convert(item):
@@ -1143,5 +1183,6 @@ while True:
 
 
         
+
 
 
