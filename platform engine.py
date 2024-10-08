@@ -31,6 +31,10 @@ class Images:
         self.body = pygame.image.load("body.png")
         self.enemyBody = pygame.image.load("enemy_body.png")
         self.star = pygame.image.load("star.png")
+        self.finish = pygame.image.load("finish.png")
+        self.checkpointOff = pygame.image.load("checkpoint_off.png")
+        self.checkpointOn = pygame.image.load("checkpoint_on.png")
+        
         blank = pygame.image.load("enemy_body.png")
         pygame.draw.circle(blank,colour.white,(20,15),10)
         pygame.draw.circle(blank,colour.black,(20,16),7)
@@ -102,7 +106,13 @@ class Level_slots:
             if item.isPressed():
                 self.pressed = True
                 self.idx = self.boxes.index(item) + 1
-        
+
+
+class Settings:
+    def __init__(self):
+        self.showFPS = False
+        self.SCRWEX = 0
+        self.SCRHEX = 0
 
 class Game:
     def __init__(self):
@@ -114,11 +124,12 @@ class Game:
         self.editor = Editor()
         self.img = Images()
         self.sound = Soundboard()
+        self.settings = Settings()
 
         self.UP = [pygame.K_UP,pygame.K_w,pygame.K_SPACE]
-        self.LEFT = [pygame.K_LEFT,pygame.K_a]
-        self.RIGHT = [pygame.K_RIGHT,pygame.K_d]
-        self.DOWN = [pygame.K_DOWN,pygame.K_s]
+        self.LEFT = [pygame.K_a,pygame.K_LEFT]
+        self.RIGHT = [pygame.K_d,pygame.K_RIGHT]
+        self.DOWN = [pygame.K_s,pygame.K_DOWN]
         self.RESTART = [pygame.K_r]
 
         self.enableMovement = True
@@ -136,6 +147,7 @@ class Game:
         self.entities = []
 
         self.animations = []
+        self.spawnPoint = []
 
         self.load()
         self.update_level()
@@ -151,8 +163,8 @@ class Game:
         self.player.yvel = 0
                 
         if not self.contains_animation("death"):
+            self.player.xpos,self.player.ypos = self.spawnPoint[0],self.spawnPoint[1]
             self.update_level(next=False) # lazy, only need to change entity positions
-            self.player.xpos,self.player.ypos = self.data[str(self.levelIDX)]["start"]
             self.player.yvel = 0
             self.player.xvel = 0
             self.player.isDead = False
@@ -294,6 +306,12 @@ class Game:
                 if pygame.Rect.colliderect(mob.hitbox.actWhole,spike):
                     self.entities.remove(mob)
                     self.animations.append(Impact_Particle(mob.xpos,mob.ypos+14,colour.red))
+
+        for item in self.checkpoints:
+            if pygame.Rect.colliderect(self.player.hitbox.actWhole,get_actual_pos((item[0],item[1],50,50))):
+                self.spawnPoint = item
+##                print(self.spawnPoint)
+                break
                 
 
         for which in [self.fanBases,self.fanColumns]:
@@ -357,8 +375,10 @@ class Game:
         self.stars = []
         self.mobs = []
         self.entities = []
+        self.checkpoints = []
 
         self.animations = []
+        self.spawnPoint = []
 
         try:
             if "start" not in self.data[str(self.levelIDX)]:
@@ -377,6 +397,8 @@ class Game:
                 self.data[str(self.levelIDX)]["stars"] = []
             if "mobs" not in self.data[str(self.levelIDX)]:
                 self.data[str(self.levelIDX)]["mobs"] = []
+            if "checkpoints" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["checkpoints"] = []
             
         except KeyError:
             self.data[str(self.levelIDX)] = {
@@ -387,7 +409,8 @@ class Game:
                 "fan bases":[],
                 "fan columns":[],
                 "stars":[],
-                "mobs":[]}
+                "mobs":[],
+                "checkpoints":[]}
 
         try:
             self.platformCol = self.data[str(self.levelIDX)]["platform colour"]
@@ -398,7 +421,7 @@ class Game:
         except KeyError:
             self.bgCol = [200,200,250]
         
-        
+        self.spawnPoint = self.data[str(self.levelIDX)]["start"]
         for item in self.data[str(self.levelIDX)]["platforms"]:
             self.platforms.append(item)
         for item in self.data[str(self.levelIDX)]["spikes"]:
@@ -411,7 +434,9 @@ class Game:
             self.stars.append([item[0],item[1]])
         for item in self.data[str(self.levelIDX)]["mobs"]:
             self.mobs.append([item[0],item[1]])
-            self.entities.append(Enemy(item[0],item[1],img=self.img.enemyBody))
+            self.entities.append(Enemy(item[0],item[1],img=self.img.enemyBody,maxXvel=random.randint(4,6)))
+        for item in self.data[str(self.levelIDX)]["checkpoints"]:
+            self.checkpoints.append([item[0],item[1]])
         
 
     def draw_bg(self):
@@ -421,15 +446,20 @@ class Game:
             sendToCam(spike_convert(item),"spike")
 ##        for item in self.spikes:
 ##            sendToCam(spike_convert(item),"hitbox")
-        end = self.data[str(self.levelIDX)]["end"] # VERY INEFFICIENT FIX ME
-        endBox = [end[0],end[1],50,50]
-        sendToCam(endBox,col=colour.green)
+        blitToCam(self.img.finish,self.data[str(self.levelIDX)]["end"]) # VERY INEFFICIENT FIX ME
         for item in self.data[str(self.levelIDX)]["fan bases"]:
             sendToCam(item,"fan base")
         for item in self.data[str(self.levelIDX)]["fan columns"]:
             sendToCam(item,"fan column")
         for item in self.data[str(self.levelIDX)]["stars"]:
             sendToCam(item,"star")
+        for item in self.data[str(self.levelIDX)]["checkpoints"]:
+            #pygame.draw.rect(SCREEN,colour.yellow,get_screen_pos((item[0],item[1],50,50)))
+            if item == self.spawnPoint:
+                blitToCam(self.img.checkpointOn,item)
+            else:
+                blitToCam(self.img.checkpointOff,item)
+            
         if self.scene == "editor":
             for item in self.data[str(self.levelIDX)]["mobs"]:
                 blitToCam(self.img.enemyForEditor,(item[0]+5,item[1]+5))
@@ -437,11 +467,11 @@ class Game:
 
     def draw_grid(self):
         for i in range((SCRW//50)+2):
-            x = (i*50) - (self.player.xpos%50)
+            x = (i*50) - (self.player.xpos%50) + (self.settings.SCRWEX//2)
             pygame.draw.line(SCREEN,(220,220,255),(x,0),(x,SCRH))
             
         for j in range((SCRH//50)+2):
-            y = (j*50) - (self.player.ypos%50)
+            y = (j*50) - (self.player.ypos%50) + (self.settings.SCRHEX//2)
             pygame.draw.line(SCREEN,(220,220,255),(0,y),(SCRW,y))
 
     def draw_menu(self):
@@ -455,8 +485,8 @@ class Game:
         # platform icon
         pygame.draw.polygon(SCREEN,colour.red,((30,110),(40,110),(35,80)))
         # spike icon
-        pygame.draw.rect(SCREEN,colour.green,(20,135,30,30))
-        # end placeholder
+        SCREEN.blit(self.img.finish,(3,125))
+        # finish
         SCREEN.blit(self.img.fanBase,(10,180))
         # fan base image
         SCREEN.blit(self.img.fanColumn,(10,245))
@@ -464,7 +494,11 @@ class Game:
         SCREEN.blit(self.img.star,(10,305))
         # fan column
         SCREEN.blit(self.img.enemyForEditor,(15,370))
-        # enemy 
+        # enemy
+        SCREEN.blit(self.img.checkpointOn,(10,425))
+        # checkpoint
+
+
 
     def check_selected(self):
         mouseRect = toRect(self.editor.mouseRect)
@@ -494,7 +528,7 @@ class Game:
         if self.restart:
             self.trigger_death()
 
-        for which in ["platform","spike","fan base","fan column","star"]:
+        for which in ["platform","spike","fan base","fan column","star","mob","checkpoint"]:
             for item in self.data[str(self.levelIDX)][which+"s"]:
                 if pygame.Rect.colliderect(toRect(newMouseRect),toRect(item)):
                     sendToCam(item,col=colour.white,name="hitbox")
@@ -552,6 +586,9 @@ class Game:
                 elif self.editor.selected == "enemy":
                     self.data[str(self.levelIDX)]["mobs"].append(truncPos)
 
+                elif self.editor.selected == "checkpoint":
+                    self.data[str(self.levelIDX)]["checkpoints"].append(truncPos)
+
                 self.update_level(next=False)
                 
                 
@@ -580,6 +617,11 @@ class Game:
                         self.data[str(self.levelIDX)]["mobs"].remove(item)
                         self.mobs.remove(item)
 
+                for item in self.checkpoints:
+                    if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
+                        self.data[str(self.levelIDX)]["checkpoints"].remove(item)
+                        self.checkpoints.remove(item)
+
                 self.update_level(next=False)          
 
 class Editor:
@@ -594,7 +636,7 @@ class Editor:
         self.selected = "platform"
 
         self.itemRects = []
-        self.ref = ["platform","spike","end","fan base","fan column","star","enemy"]
+        self.ref = ["platform","spike","end","fan base","fan column","star","enemy","checkpoint"]
 
         for i in range(10):
             y = i*60
@@ -1023,7 +1065,7 @@ def tick_boxes():
             game.update_level(next=False)
             
         game.scene = "menu"
-        game.trigger_death()
+        game.trigger_death(die=False)
 
     if editorBox.isPressed():
         game.scene = "editor"
@@ -1059,6 +1101,8 @@ def handle_events(move):
         if event.type == pygame.VIDEORESIZE:
             SCREEN = pygame.display.set_mode((event.w, event.h),pygame.RESIZABLE)
             SCRW,SCRH = pygame.display.get_window_size()
+            game.settings.SCRWEX = SCRW%100
+            game.settings.SCRHEX = SCRH%100
             repos_boxes()
             
         elif event.type == pygame.KEYDOWN:
