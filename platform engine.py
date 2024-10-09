@@ -114,6 +114,7 @@ class Settings:
         self.SCRWEX = 0
         self.SCRHEX = 0
 
+
 class Game:
     def __init__(self):
         self.gravity = 0.981
@@ -154,8 +155,8 @@ class Game:
 
     def trigger_death(self,die=True):
         if die:
-            self.player.isDead = True
-            if(not self.player.lastIsDead) and self.player.isDead:
+            if not self.player.isDead:
+                self.player.isDead = True
                 self.animations.append(Death_Particle(self.player.xpos,self.player.ypos+14,self.player.colour))
                 self.enableMovement = False
 
@@ -165,8 +166,6 @@ class Game:
         if not self.contains_animation("death"):
             self.player.xpos,self.player.ypos = self.spawnPoint[0],self.spawnPoint[1]
             self.update_level(next=False) # lazy, only need to change entity positions
-            self.player.yvel = 0
-            self.player.xvel = 0
             self.player.isDead = False
             self.player.atFinish = False
             self.enableMovement = True
@@ -347,7 +346,9 @@ class Game:
             
 
     def correct_player(self):     
-        if self.player.wallData[0] and self.player.yvel == 0:
+        if self.player.wallData[4] and self.player.yvel == 0:
+            if self.player.wallData[3]:
+                self.player.ypos -= 85
             self.player.ypos = ((self.player.ypos//50)*50)+31
             if self.player.lastYvel != 0:
                 self.animations.append(Impact_Particle(self.player.xpos,self.player.ypos+14,colour.darkgrey))
@@ -714,13 +715,15 @@ class Player:
     def update_hitboxes(self):
         self.hitbox.whole = toRect([self.xpos-20,self.ypos-19,40,40])
         self.hitbox.top = toRect([self.xpos-10,self.ypos-19,20,5])
-        self.hitbox.bottom = toRect([self.xpos-12,self.ypos+15,24,15])
+##        self.hitbox.bottom = toRect([self.xpos-12,self.ypos+15,24,15])
+        self.hitbox.bottom = toRect([self.xpos-12,self.ypos+5,24,15])
         self.hitbox.left = toRect([self.xpos-20,self.ypos-20,5,39])
         self.hitbox.right = toRect([self.xpos+15,self.ypos-20,5,39])
         
         self.hitbox.actWhole = toRect(get_actual_pos([self.xpos-20,self.ypos-19,40,40]))
         self.hitbox.actTop = toRect(get_actual_pos([self.xpos-10,self.ypos-19,20,5]))
-        self.hitbox.actBottom = toRect(get_actual_pos([self.xpos-12,self.ypos+15,24,15]))
+##        self.hitbox.actBottom = toRect(get_actual_pos([self.xpos-12,self.ypos+15,24,15]))
+        self.hitbox.actBottom = toRect(get_actual_pos([self.xpos-12,self.ypos+5,24,15]))
         self.hitbox.actLeft = toRect(get_actual_pos([self.xpos-20,self.ypos-20,5,39]))
         self.hitbox.actRight = toRect(get_actual_pos([self.xpos+15,self.ypos-20,5,39]))
 
@@ -970,7 +973,10 @@ selectedBox = u.old_textbox("",font18,(SCRW//2,60),tags=["editor"])
 coordBox = u.old_textbox("",font18,(SCRW//3,20),tags=["editor"])
 levelIDXBox = u.old_textbox("",font18,(SCRW//2,20),tags=["ingame","editor"])
 settingsBox = u.old_textbox("SETTINGS",font18,(SCRW//1.3,500),tags=["menu"])
-boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,levelsBox,settingsBox]
+showFPSBox = u.old_textbox("Show FPS",font18,(200,200),tags=["settings"])
+FPSBox = u.old_textbox("FPS: -",font18,(SCRW-50,SCRH-50),tags=["ingame","editor","settings"])
+boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,levelsBox,settingsBox,
+         showFPSBox]
 # hard coded textboxes
 
 ##################################################
@@ -1055,6 +1061,12 @@ def tick_boxes():
             item.display()
         else:
             item.isShowing = False
+
+    if game.settings.showFPS:
+        FPSBox.isShowing = True
+        FPSBox.display()
+    else:
+        FPSBox.isShowing = False
 
     if startBox.isPressed():
         game.scene = "ingame"
