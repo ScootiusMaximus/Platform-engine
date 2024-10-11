@@ -2,6 +2,7 @@ import colour
 import json
 import math
 import os
+##import pyautogui as pyg
 import pygame
 import random 
 import sys  
@@ -34,6 +35,7 @@ class Images:
         self.finish = pygame.image.load("finish.png")
         self.checkpointOff = pygame.image.load("checkpoint_off.png")
         self.checkpointOn = pygame.image.load("checkpoint_on.png")
+        self.tick = pygame.transform.scale_by(pygame.image.load("tick.png"),(0.2))
         
         blank = pygame.image.load("enemy_body.png")
         pygame.draw.circle(blank,colour.white,(20,15),10)
@@ -114,6 +116,12 @@ class Settings:
         self.SCRWEX = 0
         self.SCRHEX = 0
 
+class Stats:
+    def __init__(self):
+        self.stars = []
+        self.enemiesKilled = 0
+        self.playTime = 0
+        self.deaths = 0
 
 class Game:
     def __init__(self):
@@ -126,6 +134,7 @@ class Game:
         self.img = Images()
         self.sound = Soundboard()
         self.settings = Settings()
+        self.stats = Stats()
 
         self.UP = [pygame.K_UP,pygame.K_w,pygame.K_SPACE]
         self.LEFT = [pygame.K_a,pygame.K_LEFT]
@@ -153,6 +162,17 @@ class Game:
         self.load()
         self.update_level()
 
+        with open("stats.json","r") as file:
+            info = json.load(file)
+            self.stats.stars = info["stars"]
+            self.stats.enemiesKilled = info["enemiesKilled"]#
+            self.stats.playTime = info["playTime"]
+            self.stats.deaths = info["deaths"]
+
+        for i in range(len(self.data)):
+            if str(i+1) not in self.stats.stars:
+                self.stats.stars[str(i+1)] = []
+
     def trigger_death(self,die=True):
         if die:
             if not self.player.isDead:
@@ -170,6 +190,7 @@ class Game:
             self.player.atFinish = False
             self.enableMovement = True
             self.restart = False
+            self.stats.deaths += 1
 
     def contains_animation(self,name):
         found = False
@@ -304,6 +325,7 @@ class Game:
             for mob in self.entities:
                 if pygame.Rect.colliderect(mob.hitbox.actWhole,spike):
                     self.entities.remove(mob)
+                    self.stats.enemiesKilled += 1
                     self.animations.append(Impact_Particle(mob.xpos,mob.ypos+14,colour.red))
 
         for item in self.checkpoints:
@@ -311,7 +333,12 @@ class Game:
                 self.spawnPoint = item
 ##                print(self.spawnPoint)
                 break
-                
+
+        for item in self.stars:
+            if pygame.Rect.colliderect(self.player.hitbox.actWhole,get_actual_pos((item[0],item[1],50,50))):
+                if item not in self.stats.stars[str(self.levelIDX)]:
+                    self.stats.stars[str(self.levelIDX)].append(item)
+                    self.animations.append(Impact_Particle(item[0],item[1],colour.yellow))
 
         for which in [self.fanBases,self.fanColumns]:
             for item in which:
@@ -352,7 +379,6 @@ class Game:
             self.player.ypos = ((self.player.ypos//50)*50)+31
             if self.player.lastYvel != 0:
                 self.animations.append(Impact_Particle(self.player.xpos,self.player.ypos+14,colour.darkgrey))
-                #print("heh")
 
         for enemy in self.entities:
             if enemy.wallData[0] and enemy.yvel == 0:
@@ -453,9 +479,11 @@ class Game:
         for item in self.data[str(self.levelIDX)]["fan columns"]:
             sendToCam(item,"fan column")
         for item in self.data[str(self.levelIDX)]["stars"]:
-            sendToCam(item,"star")
+            if self.scene == "editor":
+                sendToCam(item,"star")
+            if item not in self.stats.stars[str(self.levelIDX)]:
+                sendToCam(item,"star")
         for item in self.data[str(self.levelIDX)]["checkpoints"]:
-            #pygame.draw.rect(SCREEN,colour.yellow,get_screen_pos((item[0],item[1],50,50)))
             if item == self.spawnPoint:
                 blitToCam(self.img.checkpointOn,item)
             else:
@@ -973,10 +1001,18 @@ selectedBox = u.old_textbox("",font18,(SCRW//2,60),tags=["editor"])
 coordBox = u.old_textbox("",font18,(SCRW//3,20),tags=["editor"])
 levelIDXBox = u.old_textbox("",font18,(SCRW//2,20),tags=["ingame","editor"])
 settingsBox = u.old_textbox("SETTINGS",font18,(SCRW//1.3,500),tags=["menu"])
-showFPSBox = u.old_textbox("Show FPS",font18,(200,200),tags=["settings"])
+showFPSBox = u.old_textbox("Show FPS",font18,(SCRW//2,150),tags=["settings"])
 FPSBox = u.old_textbox("FPS: -",font18,(SCRW-50,SCRH-50),tags=["ingame","editor","settings"])
+statsTitleBox = u.old_textbox("Statistics",font28,(SCRW//2,300),tags=["settings"])
+collectedStarsBox = u.old_textbox("Stars collectd: -",font18,(SCRW//2,400),tags=["settings"])
+enemiesDefeatedBox = u.old_textbox("Enemies defeated: -",font18,(SCRW//2,450),tags=["settings"])
+deathCountBox = u.old_textbox("Number of deaths: -",font18,(SCRW//2,500),tags=["settings"])
+uptimeBox = u.old_textbox("Time Played: -",font18,(SCRW//2,550),tags=["settings"])
+resetStatsBox = u.old_textbox("RESET STATISTICS",font18,(SCRW//5,550),tags=["settings"],backgroundCol=colour.red)
+
 boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,levelsBox,settingsBox,
-         showFPSBox]
+         showFPSBox,statsTitleBox,collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox,
+         resetStatsBox]
 # hard coded textboxes
 
 ##################################################
@@ -1053,6 +1089,8 @@ def repos_boxes():
     coordBox.pos = (SCRW//3,20)
     levelIDXBox.pos = (SCRW//2,20)
     settingsBox.pos = (SCRW//1.3,500)
+    showFPSBox.pos = (SCRW//2,150)
+    FPSBox.pos = (SCRW-50,SCRH-50)
 
 def tick_boxes():
     for item in boxes:
@@ -1063,6 +1101,8 @@ def tick_boxes():
             item.isShowing = False
 
     if game.settings.showFPS:
+        fps = str(clock.get_fps()).split(".")
+        FPSBox.update_message(f"FPS:{fps[0]}.{fps[1][:3]}")
         FPSBox.isShowing = True
         FPSBox.display()
     else:
@@ -1089,6 +1129,15 @@ def tick_boxes():
     if settingsBox.isPressed():
         game.scene = "settings"
 
+    if showFPSBox.isPressed():
+        game.settings.showFPS = not game.settings.showFPS
+
+    if resetStatsBox.isPressed():
+        game.stats.stars = {}
+        game.stats.enemiesKilled = 0
+        game.stats.deaths = 0
+        game.stats.playTime = 0
+        
 
 def spike_convert(item):
     return [item[0]+5,item[1]-30,40,30]
@@ -1096,9 +1145,16 @@ def spike_convert(item):
 
 
 def go_quit():
+    with open("stats.json","w") as file:
+        info = {}
+        info["stars"] = game.stats.stars
+        info["enemiesKilled"] = game.stats.enemiesKilled
+        info["playTime"] = game.stats.playTime + now()
+        info["deaths"] = game.stats.deaths
+        file.write(json.dumps(info))
+
     pygame.quit()
     sys.exit()
-
 
 def now():
     return pygame.time.get_ticks()
@@ -1218,6 +1274,25 @@ while True:
             game.update_level(next=False)
 
 
+    elif game.scene == "settings":
+        #collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox
+        starCount = 0
+        for key in game.stats.stars:
+            starCount += len(game.stats.stars[key])
+
+        ms = (game.stats.playTime + now())
+        secs = (ms // 1000) % 60
+        mins = (ms // (1000*60)) % 60
+        hours = (ms // (1000*60*60)) % 60
+        uptime = f"Time played: {hours}h {mins}m {secs}s"
+            
+        collectedStarsBox.update_message(f"Stars colelcted: {starCount}")
+        enemiesDefeatedBox.update_message(f"Enemies defeated: {game.stats.enemiesKilled}")
+        deathCountBox.update_message(f"Number of deaths: {game.stats.deaths}")
+        uptimeBox.update_message(uptime)
+
+        if game.settings.showFPS:
+            SCREEN.blit(img.tick,((SCRW//2)+50,135))
 
 
 
@@ -1230,15 +1305,6 @@ while True:
 
 
 
-
-
-
-
-
-
-
-
-        
 
 
 
