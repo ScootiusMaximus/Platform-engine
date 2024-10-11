@@ -83,7 +83,7 @@ class Level_slots:
         for i in range(self.num):
             j = (i%15)
             x = ((j%5)*SCRW//5)+SCRW//10 
-            y = ((j//5)*SCRH//3)+SCRH//6
+            y = ((j//5)*SCRH//4)+SCRH//8
             self.boxes.append(u.old_textbox(" "+str(i+1)+" ",font50,(x,y)))
 
     def tick(self):
