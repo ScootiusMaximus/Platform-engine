@@ -1,8 +1,6 @@
 import colour
 import json
 import math
-import os
-##import pyautogui as pyg
 import pygame
 import random 
 import sys  
@@ -36,6 +34,9 @@ class Images:
         self.checkpointOff = pygame.image.load("checkpoint_off.png")
         self.checkpointOn = pygame.image.load("checkpoint_on.png")
         self.tick = pygame.transform.scale_by(pygame.image.load("tick.png"),(0.2))
+        self.cloud = {"1":[pygame.image.load("cloud1.png"),
+                          pygame.image.load("cloud2.png"),
+                          pygame.image.load("cloud3.png")]}
         
         blank = pygame.image.load("enemy_body.png")
         pygame.draw.circle(blank,colour.white,(20,15),10)
@@ -44,6 +45,30 @@ class Images:
         pygame.draw.circle(blank,colour.black,(20,18),1)
         self.enemyForEditor = blank
 
+    def resize_cloud(self,scale):
+        self.cloud[str(scale)] = []
+        for item in self.cloud["1"]:
+            self.cloud[str(scale)].append(pygame.transform.scale_by(item,scale))
+
+class Cloud:
+    def __init__(self,which,img):
+        self.xpos = -img.get_width()
+        self.ypos = random.randint(100,1000)
+        self.yvar = 0
+        self.which = which
+        self.img = img
+        self.speed = random.randint(1,5) / 10
+        self.needsDel = False
+
+    def tick(self):
+        self.xpos += self.speed
+        if self.xpos > SCRW:
+            self.needsDel = True
+
+        SCREEN.blit(self.img,(self.xpos,self.ypos-self.yvar))
+
+    def get_player_ypos(self,ypos):
+        self.yvar = ypos/5
 
 class Soundboard:
     def __init__(self):
@@ -128,6 +153,7 @@ class Game:
         self.gravity = 0.981
         self.scene = "menu"
         self.restart = False # if the player presses the restart key
+        self.scale = 1
 
         self.player = None
         self.editor = Editor()
@@ -143,6 +169,10 @@ class Game:
         self.RESTART = [pygame.K_r]
 
         self.enableMovement = True
+
+        self.lastCloud = 0
+        self.cloudInterval = 5000
+        self.clouds = []
 
         self.data = {} # the whole json file
         self.levelIDX = 1
@@ -169,9 +199,30 @@ class Game:
             self.stats.playTime = info["playTime"]
             self.stats.deaths = info["deaths"]
 
+        self.fix_stats_stars()
+        
+    def fix_stats_stars(self):
         for i in range(len(self.data)):
             if str(i+1) not in self.stats.stars:
                 self.stats.stars[str(i+1)] = []
+
+    def generate_cloud(self):
+        if now() - self.lastCloud > self.cloudInterval:
+            self.lastCloud = now()
+            typ = random.randint(0,2)
+            self.clouds.append(Cloud(typ,self.img.cloud[str(self.scale)][typ]))
+
+        toDel = []
+
+        for item in self.clouds:
+            item.tick()
+            item.get_player_ypos(self.player.ypos)
+            if item.needsDel:
+                toDel.append(item)
+
+        for item in toDel:
+            self.clouds.remove(item)
+
 
     def trigger_death(self,die=True):
         if die:
@@ -179,6 +230,7 @@ class Game:
                 self.player.isDead = True
                 self.animations.append(Death_Particle(self.player.xpos,self.player.ypos+14,self.player.colour))
                 self.enableMovement = False
+                self.stats.deaths += 1
 
         self.player.xvel = 0
         self.player.yvel = 0
@@ -190,7 +242,6 @@ class Game:
             self.player.atFinish = False
             self.enableMovement = True
             self.restart = False
-            self.stats.deaths += 1
 
     def contains_animation(self,name):
         found = False
@@ -338,7 +389,7 @@ class Game:
             if pygame.Rect.colliderect(self.player.hitbox.actWhole,get_actual_pos((item[0],item[1],50,50))):
                 if item not in self.stats.stars[str(self.levelIDX)]:
                     self.stats.stars[str(self.levelIDX)].append(item)
-                    self.animations.append(Impact_Particle(item[0],item[1],colour.yellow))
+                    self.animations.append(Star_Particle(item[0],item[1],colour.yellow))
 
         for which in [self.fanBases,self.fanColumns]:
             for item in which:
@@ -533,7 +584,7 @@ class Game:
         mouseRect = toRect(self.editor.mouseRect)
         for item in self.editor.itemRects:
             compRect = toRect(item)
-            if pygame.Rect.colliderect(compRect,mouseRect): # if mouse if over an item box
+            if pygame.Rect.colliderect(compRect,mouseRect): # if mouse is over an item box
                 try:
                     self.editor.selected = self.editor.ref[self.editor.itemRects.index(item)]
                 except IndexError:
@@ -555,7 +606,7 @@ class Game:
         newMouseRect = get_actual_pos(self.editor.mouseRect)
         
         if self.restart:
-            self.trigger_death()
+            self.trigger_death(die=False)
 
         for which in ["platform","spike","fan base","fan column","star","mob","checkpoint"]:
             for item in self.data[str(self.levelIDX)][which+"s"]:
@@ -744,16 +795,16 @@ class Player:
         self.hitbox.whole = toRect([self.xpos-20,self.ypos-19,40,40])
         self.hitbox.top = toRect([self.xpos-10,self.ypos-19,20,5])
 ##        self.hitbox.bottom = toRect([self.xpos-12,self.ypos+15,24,15])
-        self.hitbox.bottom = toRect([self.xpos-12,self.ypos+5,24,15])
-        self.hitbox.left = toRect([self.xpos-20,self.ypos-20,5,39])
-        self.hitbox.right = toRect([self.xpos+15,self.ypos-20,5,39])
+        self.hitbox.bottom = toRect([self.xpos-10,self.ypos+5,20,15])
+        self.hitbox.left = toRect([self.xpos-20,self.ypos-20,5,30])
+        self.hitbox.right = toRect([self.xpos+15,self.ypos-20,5,30])
         
         self.hitbox.actWhole = toRect(get_actual_pos([self.xpos-20,self.ypos-19,40,40]))
         self.hitbox.actTop = toRect(get_actual_pos([self.xpos-10,self.ypos-19,20,5]))
 ##        self.hitbox.actBottom = toRect(get_actual_pos([self.xpos-12,self.ypos+15,24,15]))
-        self.hitbox.actBottom = toRect(get_actual_pos([self.xpos-12,self.ypos+5,24,15]))
-        self.hitbox.actLeft = toRect(get_actual_pos([self.xpos-20,self.ypos-20,5,39]))
-        self.hitbox.actRight = toRect(get_actual_pos([self.xpos+15,self.ypos-20,5,39]))
+        self.hitbox.actBottom = toRect(get_actual_pos([self.xpos-10,self.ypos+5,20,15]))
+        self.hitbox.actLeft = toRect(get_actual_pos([self.xpos-20,self.ypos-20,5,30]))
+        self.hitbox.actRight = toRect(get_actual_pos([self.xpos+15,self.ypos-20,5,30]))
 
 
     def check(self):
@@ -886,7 +937,7 @@ class Enemy:
     def get_angle(self,pos):
         dx = pos[0] - self.xpos
         dy = pos[1] - self.ypos
-        return math.atan2(dy/dx)
+        return math.atan2(dy,dx)
 
 
 class Animation:
@@ -988,6 +1039,46 @@ class Death_Particle(Animation):
         for item in rects:
             pygame.draw.rect(SCREEN,self.col,get_screen_pos(item))
 
+
+class Star_Particle(Animation):
+    def __init__(self,xpos,ypos,col):
+        super().__init__(xpos,ypos)
+        self.interval = 50
+        self.col = col
+        self.name = "star"
+        self.size = 20
+        
+    def draw(self):
+        rects = []
+##        if self.frame == 1:
+##            rects = [[self.xpos-self.size-3,self.ypos-self.size+3,self.size,self.size],
+##                     [self.xpos-self.size+2,self.ypos-self.size+4,self.size,self.size]]
+##        elif self.frame == 2:
+##            rects = [[self.xpos-self.size-7,self.ypos-self.size+6,self.size,self.size],
+##                     [self.xpos-self.size+5,self.ypos-self.size+9,self.size,self.size]]
+##        elif self.frame == 3:
+##            rects = [[self.xpos-self.size-11,self.ypos-self.size+10,self.size,self.size],
+##                     [self.xpos-self.size+7,self.ypos-self.size+15,self.size,self.size]]
+##        elif self.frame == 4:
+##            rects = [[self.xpos-self.size-14,self.ypos-self.size+8,self.size,self.size],
+##                     [self.xpos-self.size+9,self.ypos-self.size+11,self.size,self.size]]
+##        elif self.frame == 5:
+##            rects = [[self.xpos-self.size-16,self.ypos-self.size+4,self.size,self.size],
+##                     [self.xpos-self.size+11,self.ypos-self.size+5,self.size,self.size]]
+##        elif self.frame == 6:
+##            rects = [[self.xpos-self.size-17,self.ypos-self.size,self.size,self.size],
+##                     [self.xpos-self.size+13,self.ypos-self.size,self.size,self.size]]
+        if self.frame >= 6:
+            self.finished = True
+
+
+##        for item in rects:
+##            pygame.draw.rect(SCREEN,self.col,get_screen_pos(item))
+        for i in range(10):
+            pygame.draw.rect(SCREEN,self.col,get_screen_pos(
+                    [self.xpos+self.size+random.randint(-20,20),
+                     self.ypos+self.size+random.randint(-20,20),
+                     random.randint(3,5),random.randint(3,5)]))
         
 ##################################################
 
@@ -1008,7 +1099,7 @@ collectedStarsBox = u.old_textbox("Stars collectd: -",font18,(SCRW//2,400),tags=
 enemiesDefeatedBox = u.old_textbox("Enemies defeated: -",font18,(SCRW//2,450),tags=["settings"])
 deathCountBox = u.old_textbox("Number of deaths: -",font18,(SCRW//2,500),tags=["settings"])
 uptimeBox = u.old_textbox("Time Played: -",font18,(SCRW//2,550),tags=["settings"])
-resetStatsBox = u.old_textbox("RESET STATISTICS",font18,(SCRW//5,550),tags=["settings"],backgroundCol=colour.red)
+resetStatsBox = u.old_textbox("RESET STATISTICS",font18,(SCRW//5,550),tags=["settings"],backgroundCol=colour.red,textCol=colour.black)
 
 boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,levelsBox,settingsBox,
          showFPSBox,statsTitleBox,collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox,
@@ -1076,7 +1167,7 @@ def toRect(alist=[0,0,0,0]):
         try:
             rect = pygame.Rect(alist[0],alist[1],0,0)
         except:
-            pass
+            rect = pygame.Rect(0,0,0,0)
     return  rect
 
 def repos_boxes():
@@ -1137,6 +1228,7 @@ def tick_boxes():
         game.stats.enemiesKilled = 0
         game.stats.deaths = 0
         game.stats.playTime = 0
+        game.fix_stats_stars()
         
 
 def spike_convert(item):
@@ -1172,6 +1264,9 @@ def handle_events(move):
             game.settings.SCRWEX = SCRW%100
             game.settings.SCRHEX = SCRH%100
             repos_boxes()
+            game.scale = min(SCRW/800,SCRH/600,)
+            game.img.resize_cloud(game.scale)
+
             
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
@@ -1223,6 +1318,7 @@ while True:
 
     if game.scene == "ingame":
         SCREEN.fill(game.bgCol)
+        game.generate_cloud()
         game.draw_bg()
         game.tick_enemies()
         game.tick()
@@ -1241,15 +1337,16 @@ while True:
         levelIDXBox.update_message("Level " + str(game.levelIDX))
 
             
-##        sendToCam(list(game.player.hitbox.bottom),"hitbox",col=colour.white)
-##        sendToCam(list(game.player.hitbox.left),"hitbox",col=colour.white)
-##        sendToCam(list(game.player.hitbox.right),"hitbox",col=colour.white)
-##        sendToCam(list(game.player.hitbox.top),"hitbox",col=colour.white)
-##        sendToCam(list(game.player.hitbox.whole),"hitbox",col=colour.white)
+#        sendToCam(list(game.player.hitbox.bottom),"hitbox",col=colour.white)
+#        sendToCam(list(game.player.hitbox.left),"hitbox",col=colour.white)
+#        sendToCam(list(game.player.hitbox.right),"hitbox",col=colour.white)
+#        sendToCam(list(game.player.hitbox.top),"hitbox",col=colour.white)
+#        sendToCam(list(game.player.hitbox.whole),"hitbox",col=colour.white)
 
 
     elif game.scene == "editor":
         SCREEN.fill(game.bgCol)
+        game.generate_cloud()
         selectedBox.update_message(game.editor.selected.capitalize())
         levelIDXBox.update_message("Level " + str(game.levelIDX))
         mpos = game.editor.mouseRect
@@ -1293,18 +1390,3 @@ while True:
 
         if game.settings.showFPS:
             SCREEN.blit(img.tick,((SCRW//2)+50,135))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
