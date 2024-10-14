@@ -50,6 +50,7 @@ class Images:
         for item in self.cloud["1"]:
             self.cloud[str(scale)].append(pygame.transform.scale_by(item,scale))
 
+
 class Cloud:
     def __init__(self,which,img):
         self.xpos = -img.get_width()
@@ -179,8 +180,10 @@ class Game:
 
         self.platformCol = []
         self.bgCol = []
+
         self.platforms = [] # list of item rects in current level
-        self.spikes = [] 
+        self.spikes = []
+        self.spikeDir = []
         self.fanBases = []
         self.fanColumns = []
         self.mobs = []
@@ -200,6 +203,10 @@ class Game:
             self.stats.deaths = info["deaths"]
 
         self.fix_stats_stars()
+
+    def orient_spikes(self):
+        for item in self.spikes:
+            sendSpikeToCam(item,orn=3,col=colour.white)
         
     def fix_stats_stars(self):
         for i in range(len(self.data)):
@@ -222,6 +229,13 @@ class Game:
 
         for item in toDel:
             self.clouds.remove(item)
+
+    def init_clouds(self):
+        for i in range(10):
+            typ = random.randint(0, 2)
+            self.clouds.append(Cloud(typ, self.img.cloud[str(self.scale)][typ]))
+            self.clouds[i-1].xpos = random.randint(0,SCRW)
+            self.clouds[i-1].ypos = random.randint(0, SCRH)
 
 
     def trigger_death(self,die=True):
@@ -521,9 +535,9 @@ class Game:
         for item in self.data[str(self.levelIDX)]["platforms"]:
             sendToCam(item,col=self.platformCol)
         for item in self.data[str(self.levelIDX)]["spikes"]:
-            sendToCam(spike_convert(item),"spike")
-##        for item in self.spikes:
-##            sendToCam(spike_convert(item),"hitbox")
+            sendSpikeToCam(item,orn=0)
+        for item in self.spikes:
+            sendToCam(spike_convert(item),"hitbox")
         blitToCam(self.img.finish,self.data[str(self.levelIDX)]["end"]) # VERY INEFFICIENT FIX ME
         for item in self.data[str(self.levelIDX)]["fan bases"]:
             sendToCam(item,"fan base")
@@ -1049,31 +1063,9 @@ class Star_Particle(Animation):
         self.size = 20
         
     def draw(self):
-        rects = []
-##        if self.frame == 1:
-##            rects = [[self.xpos-self.size-3,self.ypos-self.size+3,self.size,self.size],
-##                     [self.xpos-self.size+2,self.ypos-self.size+4,self.size,self.size]]
-##        elif self.frame == 2:
-##            rects = [[self.xpos-self.size-7,self.ypos-self.size+6,self.size,self.size],
-##                     [self.xpos-self.size+5,self.ypos-self.size+9,self.size,self.size]]
-##        elif self.frame == 3:
-##            rects = [[self.xpos-self.size-11,self.ypos-self.size+10,self.size,self.size],
-##                     [self.xpos-self.size+7,self.ypos-self.size+15,self.size,self.size]]
-##        elif self.frame == 4:
-##            rects = [[self.xpos-self.size-14,self.ypos-self.size+8,self.size,self.size],
-##                     [self.xpos-self.size+9,self.ypos-self.size+11,self.size,self.size]]
-##        elif self.frame == 5:
-##            rects = [[self.xpos-self.size-16,self.ypos-self.size+4,self.size,self.size],
-##                     [self.xpos-self.size+11,self.ypos-self.size+5,self.size,self.size]]
-##        elif self.frame == 6:
-##            rects = [[self.xpos-self.size-17,self.ypos-self.size,self.size,self.size],
-##                     [self.xpos-self.size+13,self.ypos-self.size,self.size,self.size]]
         if self.frame >= 6:
             self.finished = True
 
-
-##        for item in rects:
-##            pygame.draw.rect(SCREEN,self.col,get_screen_pos(item))
         for i in range(10):
             pygame.draw.rect(SCREEN,self.col,get_screen_pos(
                     [self.xpos+self.size+random.randint(-20,20),
@@ -1108,18 +1100,42 @@ boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,le
 
 ##################################################
 
+def sendSpikeToCam(item,orn=0,col=colour.red):
+    item = spike_convert(item)
+    x = item[0] + (SCRW // 2) - player.xpos
+    y = item[1] + (SCRH // 2) - player.ypos
+
+    if orn == 0: # attached to floor
+        for i in range(5):
+            pygame.draw.polygon(SCREEN, col, (
+                (x + (10 * i) - 5, y + 30),
+                (x + (10 * i), y - 5),
+                (x + (10 * i) + 5, y + 30)))
+    elif orn == 1: # attached to right
+        for i in range(5):
+            pygame.draw.polygon(SCREEN, col, (
+                (x + 45, y + (10 * i) - 20),
+                (x + 10, y + (10 * i) - 15),
+                (x + 45, y + (10 * i) - 10)))
+
+    elif orn == 2: # attached to ceiling
+        for i in range(5):
+            pygame.draw.polygon(SCREEN, col, (
+                (x + (10 * i) - 5, y - 20),
+                (x + (10 * i), y + 15),
+                (x + (10 * i) + 5, y - 20)))
+
+    elif orn == 3:  #attached to left
+        for i in range(5):
+            pygame.draw.polygon(SCREEN, col, (
+                (x - 5, y + (10 * i) - 20),
+                (x + 30, y + (10 * i) - 15),
+                (x - 5, y + (10 * i) - 10)))
+
+    return None
 
 def sendToCam(item,name=None,col=None):
-    if name == "spike":
-        if col == None: col = colour.red
-        for i in range(5):
-            pygame.draw.polygon(SCREEN,col,(
-                (item[0]+(SCRW//2)-player.xpos+(10*i)-5,item[1]+(SCRH//2)-player.ypos+30),
-                (item[0]+(SCRW//2)-player.xpos+(10*i),item[1]+(SCRH//2)-player.ypos-5),
-                (item[0]+(SCRW//2)-player.xpos+(10*i)+5,item[1]+(SCRH//2)-player.ypos+30)))
-        return None
-
-    elif name == "fan base":
+    if name == "fan base":
         SCREEN.blit(img.fanBase,(item[0]-player.xpos+(SCRW//2),item[1]-player.ypos+(SCRH//2)))
         return None
 
@@ -1139,7 +1155,6 @@ def sendToCam(item,name=None,col=None):
 ##            pass #off the screen
 ##        if newRect[1] + item[3] < 0 or newRect[3] > SCRW:
 ##            pass #off the screen
-        
         
         if name != "hitbox":
             if col == None: col = colour.darkgrey
@@ -1201,6 +1216,7 @@ def tick_boxes():
 
     if startBox.isPressed():
         game.scene = "ingame"
+        game.init_clouds()
 
     if menuBox.isPressed():
         if game.scene == "editor":
@@ -1320,6 +1336,7 @@ while True:
         SCREEN.fill(game.bgCol)
         game.generate_cloud()
         game.draw_bg()
+        #game.orient_spikes()
         game.tick_enemies()
         game.tick()
         game.tick_player()
@@ -1355,7 +1372,8 @@ while True:
         coordBox.update_message(( str(acx) + "," + str(acy) ))
         
         game.draw_grid()
-        game.draw_bg()           
+        game.draw_bg()
+        game.orient_spikes()
         game.check_selected()
         game.run_editor()
         game.player.free_cam()
