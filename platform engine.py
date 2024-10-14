@@ -75,7 +75,7 @@ class Soundboard:
     def __init__(self):
         self.jump = pygame.mixer.Sound("jump.wav")
         self.fall = pygame.mixer.Sound("fall.wav")
-        
+
         self.music = [
             pygame.mixer.Sound("Track 1.wav")
             ]
@@ -205,9 +205,42 @@ class Game:
         self.fix_stats_stars()
 
     def orient_spikes(self):
-        for item in self.spikes:
-            sendSpikeToCam(item,orn=3,col=colour.white)
-        
+        self.spikeDir = []
+        for spike in self.spikes:
+            bottom = False
+            right = False
+            top = False
+            left = False
+            direction = 0
+            points = [pygame.Rect(spike[0], spike[1], 10, 10),
+                    pygame.Rect(spike[0] + 50, spike[1] - 50, 10, 10),
+                    pygame.Rect(spike[0], spike[1] - 100, 10, 10),
+                    pygame.Rect(spike[0] - 50, spike[1] - 50, 10, 10)]
+            for plat in self.platforms:
+                for point in points:
+                    sendToCam(list(point), name="hitbox", col=colour.green)
+
+                if pygame.Rect.colliderect(toRect(points[0]),toRect(plat)):
+                    bottom = True
+                if pygame.Rect.colliderect(toRect(points[1]),toRect(plat)):
+                    right = True
+                if pygame.Rect.colliderect(toRect(points[2]),toRect(plat)):
+                    top = True
+                if pygame.Rect.colliderect(toRect(points[3]),toRect(plat)):
+                    left = True
+
+            if left:
+                direction = 3
+            if top:
+                direction = 2
+            if right:
+                direction = 1
+            if bottom:
+                direction = 0
+
+            self.spikeDir.append(direction)
+
+
     def fix_stats_stars(self):
         for i in range(len(self.data)):
             if str(i+1) not in self.stats.stars:
@@ -383,7 +416,8 @@ class Game:
                 
         
         for item in self.spikes:
-            spike = toRect(get_actual_pos(spike_convert(item)))
+            orn = self.spikeDir[self.spikes.index(item)]
+            spike = toRect(get_actual_pos(spike_convert(item,orn)))
             if pygame.Rect.colliderect(self.player.hitbox.actWhole,spike):
                 self.trigger_death()
                 break
@@ -529,15 +563,18 @@ class Game:
             self.entities.append(Enemy(item[0],item[1],img=self.img.enemyBody,maxXvel=random.randint(4,6)))
         for item in self.data[str(self.levelIDX)]["checkpoints"]:
             self.checkpoints.append([item[0],item[1]])
-        
+
+        self.orient_spikes()
 
     def draw_bg(self):
         for item in self.data[str(self.levelIDX)]["platforms"]:
             sendToCam(item,col=self.platformCol)
-        for item in self.data[str(self.levelIDX)]["spikes"]:
-            sendSpikeToCam(item,orn=0)
-        for item in self.spikes:
-            sendToCam(spike_convert(item),"hitbox")
+        for i in range(len(self.data[str(self.levelIDX)]["spikes"])):
+            #print(f"len of spikes {len(self.data[str(self.levelIDX)]["spikes"])}\nlen of spikeDir {len(self.spikeDir)}")
+            sendSpikeToCam(self.data[str(self.levelIDX)]["spikes"][i-1],orn=self.spikeDir[i-1])
+        #for item in self.spikes:
+        #    orn = self.spikeDir[self.spikes.index(item)]
+        #    sendToCam(spike_convert(item,orn),"hitbox")
         blitToCam(self.img.finish,self.data[str(self.levelIDX)]["end"]) # VERY INEFFICIENT FIX ME
         for item in self.data[str(self.levelIDX)]["fan bases"]:
             sendToCam(item,"fan base")
@@ -664,6 +701,7 @@ class Game:
                 if self.editor.selected == "spike":
                     newSpike = [truncPos[0],truncPos[1]+50]
                     self.data[str(self.levelIDX)]["spikes"].append(newSpike)
+                    self.orient_spikes()
 
                 elif self.editor.selected == "end":
                     self.data[str(self.levelIDX)]["end"] = truncPos
@@ -688,8 +726,10 @@ class Game:
                 
             if self.editor.clicksR == [True,False]: #RMB
                 for item in self.spikes:
-                    if pygame.Rect.colliderect(toRect(newMouseRect),spike_convert(item)):
+                    orn = self.spikeDir[self.spikes.index(item)]
+                    if pygame.Rect.colliderect(toRect(newMouseRect),spike_convert(item,orn)):
                         self.data[str(self.levelIDX)]["spikes"].remove(item)
+                        self.orient_spikes()
                         
                 for item in self.fanBases:
                     if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
@@ -1101,6 +1141,7 @@ boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,le
 ##################################################
 
 def sendSpikeToCam(item,orn=0,col=colour.red):
+    #print(f"orn {orn} for {item}")
     item = spike_convert(item)
     x = item[0] + (SCRW // 2) - player.xpos
     y = item[1] + (SCRH // 2) - player.ypos
@@ -1160,7 +1201,9 @@ def sendToCam(item,name=None,col=None):
             if col == None: col = colour.darkgrey
             pygame.draw.rect(SCREEN,col,newRect)
         else:
-            pygame.draw.rect(SCREEN,colour.white,newRect,width=2)
+            if col == None: col = colour.white
+           # print(f"success for {newRect}")
+            pygame.draw.rect(SCREEN,col,newRect,width=2)
 
 def blitToCam(item,pos):
     SCREEN.blit(item,((SCRW//2)-player.xpos+pos[0],(SCRH//2)-player.ypos+pos[1]))
@@ -1217,6 +1260,7 @@ def tick_boxes():
     if startBox.isPressed():
         game.scene = "ingame"
         game.init_clouds()
+        game.orient_spikes()
 
     if menuBox.isPressed():
         if game.scene == "editor":
@@ -1229,6 +1273,8 @@ def tick_boxes():
     if editorBox.isPressed():
         game.scene = "editor"
         game.enableMovement = True
+        game.orient_spikes()
+
 
     if levelsBox.isPressed():
         game.scene = "levels"
@@ -1247,8 +1293,17 @@ def tick_boxes():
         game.fix_stats_stars()
         
 
-def spike_convert(item):
-    return [item[0]+5,item[1]-30,40,30]
+def spike_convert(item,orn=0):
+    if orn == 0:
+        return [item[0] + 5, item[1] - 30, 40, 30]
+    elif orn == 1:
+        return [item[0] + 20, item[1] - 45, 30, 40]
+    elif orn == 2:
+        return [item[0] + 5, item[1] - 50, 40, 30]
+    elif orn == 3:
+        return [item[0], item[1] - 45, 30, 40]
+    else:
+        raise SyntaxError("Cannot have a spike of that orientation")
     #return [item[0],item[1],40,30]
 
 
@@ -1312,9 +1367,9 @@ def handle_events(move):
 
 ##################################################
 
-game = Game()
 img = Images()
-player = Player(game.gravity,img=img.body)#,maxXvel = 1000, maxYvel = 1000) # hehe
+player = Player(gravity=0.981,img=img.body)#,maxXvel = 1000, maxYvel = 1000) # hehe
+game = Game()
 game.player = player
 levelSlots = Level_slots(len(game.data))
 
@@ -1336,7 +1391,6 @@ while True:
         SCREEN.fill(game.bgCol)
         game.generate_cloud()
         game.draw_bg()
-        #game.orient_spikes()
         game.tick_enemies()
         game.tick()
         game.tick_player()
@@ -1372,10 +1426,10 @@ while True:
         coordBox.update_message(( str(acx) + "," + str(acy) ))
         
         game.draw_grid()
+        game.run_editor() # temp
         game.draw_bg()
-        game.orient_spikes()
         game.check_selected()
-        game.run_editor()
+        #game.run_editor()
         game.player.free_cam()
         game.draw_menu()
 
