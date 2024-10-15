@@ -217,8 +217,8 @@ class Game:
                     pygame.Rect(spike[0], spike[1] - 100, 10, 10),
                     pygame.Rect(spike[0] - 50, spike[1] - 50, 10, 10)]
             for plat in self.platforms:
-                for point in points:
-                    sendToCam(list(point), name="hitbox", col=colour.green)
+                #for point in points:
+                #    sendToCam(list(point), name="hitbox", col=colour.green)
 
                 if pygame.Rect.colliderect(toRect(points[0]),toRect(plat)):
                     bottom = True
