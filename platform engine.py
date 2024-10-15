@@ -473,10 +473,11 @@ class Game:
 
     def correct_player(self):     
         if self.player.wallData[4] and self.player.yvel == 0:
-            if self.player.wallData[3]:
-                self.player.ypos -= 85
-            self.player.ypos = ((self.player.ypos//50)*50)+31
-            if self.player.lastYvel != 0:
+            self.player.ypos = ((self.player.ypos // 50) * 50) + 31
+            if self.player.wallData[3]: # if clipping through ground
+                self.player.ypos -= 80
+            #self.player.ypos
+            if self.player.lastYvel != 0: # if just landed
                 self.animations.append(Impact_Particle(self.player.xpos,self.player.ypos+14,colour.darkgrey))
 
         for enemy in self.entities:
@@ -847,14 +848,14 @@ class Player:
 
     def update_hitboxes(self):
         self.hitbox.whole = toRect([self.xpos-20,self.ypos-19,40,40])
-        self.hitbox.top = toRect([self.xpos-10,self.ypos-19,20,5])
+        self.hitbox.top = toRect([self.xpos-10,self.ypos-19,20,20])
 ##        self.hitbox.bottom = toRect([self.xpos-12,self.ypos+15,24,15])
         self.hitbox.bottom = toRect([self.xpos-10,self.ypos+5,20,15])
         self.hitbox.left = toRect([self.xpos-20,self.ypos-20,5,30])
         self.hitbox.right = toRect([self.xpos+15,self.ypos-20,5,30])
         
         self.hitbox.actWhole = toRect(get_actual_pos([self.xpos-20,self.ypos-19,40,40]))
-        self.hitbox.actTop = toRect(get_actual_pos([self.xpos-10,self.ypos-19,20,5]))
+        self.hitbox.actTop = toRect(get_actual_pos([self.xpos-10,self.ypos-19,20,20]))
 ##        self.hitbox.actBottom = toRect(get_actual_pos([self.xpos-12,self.ypos+15,24,15]))
         self.hitbox.actBottom = toRect(get_actual_pos([self.xpos-10,self.ypos+5,20,15]))
         self.hitbox.actLeft = toRect(get_actual_pos([self.xpos-20,self.ypos-20,5,30]))
@@ -1368,7 +1369,7 @@ def handle_events(move):
 ##################################################
 
 img = Images()
-player = Player(gravity=0.981,img=img.body)#,maxXvel = 1000, maxYvel = 1000) # hehe
+player = Player(gravity=0.981,img=img.body,maxXvel = 10, maxYvel = 30) # hehe
 game = Game()
 game.player = player
 levelSlots = Level_slots(len(game.data))
