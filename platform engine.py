@@ -347,10 +347,12 @@ class Game:
         if self.player.xvel < 0 and self.player.wallData[1]:
             self.player.xvel = 0
 
-        if self.player.move[0]: # wall jump 
-            if self.player.wallData[0]:
-                self.player.yvel = -20
-                if self.sound.enabled: self.sound.jump.play()
+        if self.player.move[0]: # wall jump
+            if self.player.onFloor:
+                if self.player.wallData[0]:
+                    self.player.yvel = -20
+                    self.player.onFloor = False
+                    if self.sound.enabled: self.sound.jump.play()
             if self.player.wallData[1]:
                 self.player.yvel = -20
                 self.player.xvel = 10
@@ -471,25 +473,27 @@ class Game:
             item.draw()
             
 
-    def correct_player(self):     
+    def correct_player(self):
         if self.player.wallData[4] and self.player.yvel == 0:
             self.player.ypos = ((self.player.ypos // 50) * 50) + 31
+            self.player.onFloor = True
             if self.player.wallData[3]: # if clipping through ground
-                self.player.ypos -= 80
+                self.player.ypos -= 100
+                print("clipping")
             #self.player.ypos
             if self.player.lastYvel != 0: # if just landed
                 self.animations.append(Impact_Particle(self.player.xpos,self.player.ypos+14,colour.darkgrey))
 
         for enemy in self.entities:
             if enemy.wallData[0] and enemy.yvel == 0:
-                enemy.ypos = ((enemy.ypos//50)*50)+21
+                enemy.ypos = ((enemy.ypos // 50) * 50) + 21
                 if enemy.lastYvel != 0:
                     self.animations.append(Impact_Particle(enemy.xpos,enemy.ypos+14,colour.darkgrey))
                     #print(f"last:{enemy.lastYvel} now {enemy.yvel}")
-            
+
         if self.player.wallData[3]: # top
             self.player.yvel = 0
-            self.player.ypos += 25            
+            self.player.ypos += 25
 
     def update_level(self,next=False):
         if next:
@@ -812,6 +816,7 @@ class Player:
         self.blinkWait = random.randint(3,6) * 1000
         self.move = [False,False,False,False]
         self.wallData = [False,False,False,False,False]
+        self.onFloor = False
         self.hitbox = Mob_Hitbox()
         if self.img == None:
             self.colour = (0,68,213)
@@ -848,16 +853,16 @@ class Player:
 
     def update_hitboxes(self):
         self.hitbox.whole = toRect([self.xpos-20,self.ypos-19,40,40])
-        self.hitbox.top = toRect([self.xpos-10,self.ypos-19,20,20])
+        self.hitbox.top = toRect([self.xpos-10,self.ypos-19,20,25])
 ##        self.hitbox.bottom = toRect([self.xpos-12,self.ypos+15,24,15])
-        self.hitbox.bottom = toRect([self.xpos-10,self.ypos+5,20,15])
+        self.hitbox.bottom = toRect([self.xpos-10,self.ypos,20,20])
         self.hitbox.left = toRect([self.xpos-20,self.ypos-20,5,30])
         self.hitbox.right = toRect([self.xpos+15,self.ypos-20,5,30])
         
         self.hitbox.actWhole = toRect(get_actual_pos([self.xpos-20,self.ypos-19,40,40]))
-        self.hitbox.actTop = toRect(get_actual_pos([self.xpos-10,self.ypos-19,20,20]))
+        self.hitbox.actTop = toRect(get_actual_pos([self.xpos-10,self.ypos-19,20,25]))
 ##        self.hitbox.actBottom = toRect(get_actual_pos([self.xpos-12,self.ypos+15,24,15]))
-        self.hitbox.actBottom = toRect(get_actual_pos([self.xpos-10,self.ypos+5,20,15]))
+        self.hitbox.actBottom = toRect(get_actual_pos([self.xpos-10,self.ypos,20,20]))
         self.hitbox.actLeft = toRect(get_actual_pos([self.xpos-20,self.ypos-20,5,30]))
         self.hitbox.actRight = toRect(get_actual_pos([self.xpos+15,self.ypos-20,5,30]))
 
@@ -1394,8 +1399,9 @@ while True:
         game.draw_bg()
         game.tick_enemies()
         game.tick()
+        game.correct_player() # temp
         game.tick_player()
-        game.correct_player()
+        #game.correct_player()
         game.player.update_hitboxes()
         if game.enableMovement:
             game.player.draw()
