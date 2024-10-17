@@ -50,7 +50,6 @@ class Images:
         for item in self.cloud["1"]:
             self.cloud[str(scale)].append(pygame.transform.scale_by(item,scale))
 
-
 class Cloud:
     def __init__(self,which,img):
         self.xpos = -img.get_width()
@@ -88,7 +87,6 @@ class Soundboard:
 
     def end_fall(self):
         self.channels[0].stop()
-
 
 class Level_slots:
     def __init__(self,num):
@@ -134,7 +132,6 @@ class Level_slots:
             if item.isPressed():
                 self.pressed = True
                 self.idx = self.boxes.index(item) + 1
-
 
 class Settings:
     def __init__(self):
@@ -271,6 +268,18 @@ class Game:
             self.clouds[i-1].ypos = random.randint(0, SCRH)
 
 
+    def draw_gradient(self):
+        step = 100
+        colA = (200,200,255)
+        colB = (200,200,170) # yellowish
+        #colB = (210,180,230) # pinkish
+        for i in range(step):
+            drawCol = [colA[0]+(i*((colB[0]-colA[0])/step)),
+                       colA[1]+(i*((colB[1]-colA[1])/step)),
+                       colA[2]+(i*(colB[2]-colA[2])/step)]
+            pygame.draw.rect(SCREEN,drawCol,(0,i*(SCRH/step),SCRW,step))
+
+
     def trigger_death(self,die=True):
         if die:
             if not self.player.isDead:
@@ -283,8 +292,9 @@ class Game:
         self.player.yvel = 0
                 
         if not self.contains_animation("death"):
-            self.player.xpos,self.player.ypos = self.spawnPoint[0],self.spawnPoint[1]
+            self.player.xpos,self.player.ypos = self.spawnPoint[0]+20,self.spawnPoint[1]+20
             self.update_level(next=False) # lazy, only need to change entity positions
+            self.player.wallData = [False,False,False,False,False]
             self.player.isDead = False
             self.player.atFinish = False
             self.enableMovement = True
@@ -474,12 +484,13 @@ class Game:
             
 
     def correct_player(self):
+        if self.player.wallData[3] and self.player.yvel > 0:  # if clipping through ground
+            self.player.ypos -= 50
+            self.player.yvel = 0
+
         if self.player.wallData[4] and self.player.yvel == 0:
             self.player.ypos = ((self.player.ypos // 50) * 50) + 31
             self.player.onFloor = True
-            if self.player.wallData[3]: # if clipping through ground
-                self.player.ypos -= 100
-                print("clipping")
             #self.player.ypos
             if self.player.lastYvel != 0: # if just landed
                 self.animations.append(Impact_Particle(self.player.xpos,self.player.ypos+14,colour.darkgrey))
@@ -491,9 +502,13 @@ class Game:
                     self.animations.append(Impact_Particle(enemy.xpos,enemy.ypos+14,colour.darkgrey))
                     #print(f"last:{enemy.lastYvel} now {enemy.yvel}")
 
-        if self.player.wallData[3]: # top
-            self.player.yvel = 0
-            self.player.ypos += 25
+        if self.player.wallData[3] and self.player.yvel < 0:# and not self.player.wallData[0]: # top only
+            self.player.wallData[1] = False
+            self.player.wallData[2] = False # stop wall jumping
+            self.player.yvel = -1
+            self.player.ypos += 21
+
+        #print(f"player ypos: {self.player.ypos}, yvel: {self.player.yvel}")
 
     def update_level(self,next=False):
         if next:
@@ -853,16 +868,16 @@ class Player:
 
     def update_hitboxes(self):
         self.hitbox.whole = toRect([self.xpos-20,self.ypos-19,40,40])
-        self.hitbox.top = toRect([self.xpos-10,self.ypos-19,20,25])
+        self.hitbox.top = toRect([self.xpos-10,self.ypos-19,20,20])
 ##        self.hitbox.bottom = toRect([self.xpos-12,self.ypos+15,24,15])
-        self.hitbox.bottom = toRect([self.xpos-10,self.ypos,20,20])
+        self.hitbox.bottom = toRect([self.xpos-10,self.ypos+2,20,18])
         self.hitbox.left = toRect([self.xpos-20,self.ypos-20,5,30])
         self.hitbox.right = toRect([self.xpos+15,self.ypos-20,5,30])
         
         self.hitbox.actWhole = toRect(get_actual_pos([self.xpos-20,self.ypos-19,40,40]))
-        self.hitbox.actTop = toRect(get_actual_pos([self.xpos-10,self.ypos-19,20,25]))
+        self.hitbox.actTop = toRect(get_actual_pos([self.xpos-10,self.ypos-19,20,20]))
 ##        self.hitbox.actBottom = toRect(get_actual_pos([self.xpos-12,self.ypos+15,24,15]))
-        self.hitbox.actBottom = toRect(get_actual_pos([self.xpos-10,self.ypos,20,20]))
+        self.hitbox.actBottom = toRect(get_actual_pos([self.xpos-10,self.ypos+2,20,18]))
         self.hitbox.actLeft = toRect(get_actual_pos([self.xpos-20,self.ypos-20,5,30]))
         self.hitbox.actRight = toRect(get_actual_pos([self.xpos+15,self.ypos-20,5,30]))
 
@@ -1394,7 +1409,7 @@ while True:
     handle_events(move=game.enableMovement)
 
     if game.scene == "ingame":
-        SCREEN.fill(game.bgCol)
+        game.draw_gradient()
         game.generate_cloud()
         game.draw_bg()
         game.tick_enemies()
@@ -1423,7 +1438,7 @@ while True:
 
 
     elif game.scene == "editor":
-        SCREEN.fill(game.bgCol)
+        game.draw_gradient()
         game.generate_cloud()
         selectedBox.update_message(game.editor.selected.capitalize())
         levelIDXBox.update_message("Level " + str(game.levelIDX))
