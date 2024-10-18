@@ -34,9 +34,16 @@ class Images:
         self.checkpointOff = pygame.image.load("checkpoint_off.png")
         self.checkpointOn = pygame.image.load("checkpoint_on.png")
         self.tick = pygame.transform.scale_by(pygame.image.load("tick.png"),(0.2))
+        self.bossImg = pygame.image.load("boss face.png")
+        self.bossMenu = pygame.transform.scale_by(pygame.image.load("boss face.png"),0.2)
         self.cloud = {"1":[pygame.image.load("cloud1.png"),
                           pygame.image.load("cloud2.png"),
                           pygame.image.load("cloud3.png")]}
+        self.code = []
+
+        for i in range(10):
+            name = f"code{i+1}.png"
+            self.code.append(pygame.image.load(name),)
         
         blank = pygame.image.load("enemy_body.png")
         pygame.draw.circle(blank,colour.white,(20,15),10)
@@ -169,7 +176,7 @@ class Game:
         self.enableMovement = True
 
         self.lastCloud = 0
-        self.cloudInterval = 5000
+        self.cloudInterval = 10000
         self.clouds = []
 
         self.data = {} # the whole json file
@@ -185,6 +192,8 @@ class Game:
         self.fanColumns = []
         self.mobs = []
         self.entities = []
+        self.bosses = []
+        self.bossEntities = []
 
         self.animations = []
         self.spawnPoint = []
@@ -228,15 +237,14 @@ class Game:
 
             if left:
                 direction = 3
-            if top:
-                direction = 2
             if right:
                 direction = 1
+            if top:
+                direction = 2
             if bottom:
                 direction = 0
 
             self.spikeDir.append(direction)
-
 
     def fix_stats_stars(self):
         for i in range(len(self.data)):
@@ -267,7 +275,6 @@ class Game:
             self.clouds[i-1].xpos = random.randint(0,SCRW)
             self.clouds[i-1].ypos = random.randint(0, SCRH)
 
-
     def draw_gradient(self):
         step = 100
         colA = (200,200,255)
@@ -278,7 +285,6 @@ class Game:
                        colA[1]+(i*((colB[1]-colA[1])/step)),
                        colA[2]+(i*(colB[2]-colA[2])/step)]
             pygame.draw.rect(SCREEN,drawCol,(0,i*(SCRH/step),SCRW,step))
-
 
     def trigger_death(self,die=True):
         if die:
@@ -318,12 +324,48 @@ class Game:
 
     def tick_enemies(self):
         for mob in self.entities:
+            mob.fix_center()
             mob.tick()
             mob.update_hitboxes()
             mob.draw()
             mob.update_target((self.player.xpos,self.player.ypos))
             mob.pathfind()
-            
+
+        for mob in self.bossEntities:
+            #print(mob.get_dist(mob.target)<mob.maxTargetDist)
+            mob.fix_center()
+            mob.update_hitbox()
+            mob.draw()
+            mob.tick_projectiles()
+            mob.update_target((self.player.xpos, self.player.ypos))
+
+            if mob.canSeeTarget:
+                mob.wepaon_sequence()
+            else:
+                mob.state = 1
+                mob.lastStateChange = now()
+                mob.vulnerable = False
+
+            if not mob.vulnerable:
+                mob.tick()
+                mob.pathfind()
+
+            if True:
+                #print(f"Boss state: {mob.state}")
+                if mob.state == 2:
+                    self.animations.append(Charge_Up(mob.xpos-125, mob.ypos - 350))
+                elif mob.state == 3 and mob.firing:
+                    mob.update_target((self.player.xpos, self.player.ypos))
+                    mob.projectiles.append(Boss_Projectile(mob.xpos-125,mob.ypos-350,mob.target))
+
+            for item in mob.projectiles:
+                if pygame.Rect.colliderect(self.player.hitbox.whole, toRect((item.xpos, item.ypos, 30, 30))):
+                    self.trigger_death(die=True)
+                for plat in self.platforms:
+                    if pygame.Rect.colliderect(toRect(plat),toRect((item.xpos,item.ypos,30,30))):
+                        item.needsDel = True
+
+
     def tick_player(self):
 ##        self.player.wallData = self.player.check()
         self.player.lastIsDead = self.player.isDead
@@ -414,17 +456,18 @@ class Game:
             if pygame.Rect.colliderect(self.player.hitbox.actWhole,compItem):
                 self.player.wallData[4] = True
 
-            for mob in self.entities:
-                if pygame.Rect.colliderect(mob.hitbox.actBottom,compItem):
-                    mob.wallData[0] = True
-                if pygame.Rect.colliderect(mob.hitbox.actLeft,compItem):
-                    mob.wallData[1] = True
-                if pygame.Rect.colliderect(mob.hitbox.actRight,compItem):
-                    mob.wallData[2] = True
-                if pygame.Rect.colliderect(mob.hitbox.actTop,compItem):
-                    mob.wallData[3] = True
-                if pygame.Rect.colliderect(mob.hitbox.actWhole,compItem):
-                    mob.wallData[4] = True
+            for which in [self.bossEntities, self.entities]:
+                for mob in which:
+                    if pygame.Rect.colliderect(mob.hitbox.actBottom,compItem):
+                        mob.wallData[0] = True
+                    if pygame.Rect.colliderect(mob.hitbox.actLeft,compItem):
+                        mob.wallData[1] = True
+                    if pygame.Rect.colliderect(mob.hitbox.actRight,compItem):
+                        mob.wallData[2] = True
+                    if pygame.Rect.colliderect(mob.hitbox.actTop,compItem):
+                        mob.wallData[3] = True
+                    if pygame.Rect.colliderect(mob.hitbox.actWhole,compItem):
+                        mob.wallData[4] = True
                 
         
         for item in self.spikes:
@@ -433,11 +476,21 @@ class Game:
             if pygame.Rect.colliderect(self.player.hitbox.actWhole,spike):
                 self.trigger_death()
                 break
+
             for mob in self.entities:
                 if pygame.Rect.colliderect(mob.hitbox.actWhole,spike):
                     self.entities.remove(mob)
                     self.stats.enemiesKilled += 1
                     self.animations.append(Impact_Particle(mob.xpos,mob.ypos+14,colour.red))
+
+            for mob in self.bossEntities:
+                if pygame.Rect.colliderect(mob.hitbox.actWhole,spike):
+                    mob.health -= 1
+                    if mob.health <= 0:
+                        self.bossEntities.remove(mob)
+                        self.stats.enemiesKilled += 1
+                    if not self.contains_animation("code particle"):
+                        self.animations.append(Code_Particle(mob.xpos - 250 + random.randint(-100, 100), mob.ypos + 14, self.img.code))
 
         for item in self.checkpoints:
             if pygame.Rect.colliderect(self.player.hitbox.actWhole,get_actual_pos((item[0],item[1],50,50))):
@@ -465,9 +518,10 @@ class Game:
                     toRect(get_actual_pos([end[0],end[1],50,50]))):
             self.player.atFinish = True
 
-        for mob in self.entities:
-            if pygame.Rect.colliderect(mob.hitbox.actWhole,self.player.hitbox.actWhole):
-                self.trigger_death()
+        for which in [self.bossEntities, self.entities]:
+            for mob in which:
+                if pygame.Rect.colliderect(mob.hitbox.actWhole,self.player.hitbox.actWhole):
+                    self.trigger_death()
 
     def draw_animations(self):
         toDel = []
@@ -481,7 +535,6 @@ class Game:
         for item in self.animations:
             item.tick()
             item.draw()
-            
 
     def correct_player(self):
         if self.player.wallData[3] and self.player.yvel > 0:  # if clipping through ground
@@ -522,6 +575,8 @@ class Game:
         self.mobs = []
         self.entities = []
         self.checkpoints = []
+        self.bosses = []
+        self.bossEntities = []
 
         self.animations = []
         self.spawnPoint = []
@@ -545,6 +600,8 @@ class Game:
                 self.data[str(self.levelIDX)]["mobs"] = []
             if "checkpoints" not in self.data[str(self.levelIDX)]:
                 self.data[str(self.levelIDX)]["checkpoints"] = []
+            if "bosses" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["bosses"] = []
             
         except KeyError:
             self.data[str(self.levelIDX)] = {
@@ -556,7 +613,8 @@ class Game:
                 "fan columns":[],
                 "stars":[],
                 "mobs":[],
-                "checkpoints":[]}
+                "checkpoints":[],
+                "bosses":[]}
 
         try:
             self.platformCol = self.data[str(self.levelIDX)]["platform colour"]
@@ -583,6 +641,9 @@ class Game:
             self.entities.append(Enemy(item[0],item[1],img=self.img.enemyBody,maxXvel=random.randint(4,6)))
         for item in self.data[str(self.levelIDX)]["checkpoints"]:
             self.checkpoints.append([item[0],item[1]])
+        for item in self.data[str(self.levelIDX)]["bosses"]:
+            self.bosses.append([item[0],item[1]])
+            self.bossEntities.append(Boss(item[0],item[1],img=self.img.bossImg))
 
         self.orient_spikes()
 
@@ -614,7 +675,9 @@ class Game:
         if self.scene == "editor":
             for item in self.data[str(self.levelIDX)]["mobs"]:
                 blitToCam(self.img.enemyForEditor,(item[0]+5,item[1]+5))
-                
+
+            for item in self.data[str(self.levelIDX)]["bosses"]:
+                blitToCam(self.img.bossImg,(item[0]-200,item[1]-200))
 
     def draw_grid(self):
         for i in range((SCRW//50)+2):
@@ -648,8 +711,7 @@ class Game:
         # enemy
         SCREEN.blit(self.img.checkpointOn,(10,425))
         # checkpoint
-
-
+        SCREEN.blit(self.img.bossMenu,(10,485))
 
     def check_selected(self):
         mouseRect = toRect(self.editor.mouseRect)
@@ -679,10 +741,12 @@ class Game:
         if self.restart:
             self.trigger_death(die=False)
 
+        # does not work
         for which in ["platform","spike","fan base","fan column","star","mob","checkpoint"]:
             for item in self.data[str(self.levelIDX)][which+"s"]:
                 if pygame.Rect.colliderect(toRect(newMouseRect),toRect(item)):
                     sendToCam(item,col=colour.white,name="hitbox")
+        ###
 
         if self.editor.selected == "platform":
             if self.editor.clicks == [True,False]:
@@ -741,6 +805,9 @@ class Game:
                 elif self.editor.selected == "checkpoint":
                     self.data[str(self.levelIDX)]["checkpoints"].append(truncPos)
 
+                elif self.editor.selected == "boss":
+                    self.data[str(self.levelIDX)]["bosses"].append(truncPos)
+
                 self.update_level(next=False)
                 
                 
@@ -776,6 +843,11 @@ class Game:
                         self.data[str(self.levelIDX)]["checkpoints"].remove(item)
                         self.checkpoints.remove(item)
 
+                for item in self.bosses:
+                    if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
+                        self.data[str(self.levelIDX)]["bosses"].remove(item)
+                        self.bosses.remove(item)
+
                 self.update_level(next=False)          
 
 class Editor:
@@ -790,12 +862,11 @@ class Editor:
         self.selected = "platform"
 
         self.itemRects = []
-        self.ref = ["platform","spike","end","fan base","fan column","star","enemy","checkpoint"]
+        self.ref = ["platform","spike","end","fan base","fan column","star","enemy","checkpoint","boss"]
 
-        for i in range(10):
+        for i in range(15):
             y = i*60
             self.itemRects.append((10,y+5,50,50))
-
 
 class Mob_Hitbox():
     def __init__(self):
@@ -809,7 +880,6 @@ class Mob_Hitbox():
         self.actBottom = pygame.Rect([0,0,0,0])
         self.actLeft = pygame.Rect([0,0,0,0])
         self.actRight = pygame.Rect([0,0,0,0])
-        
 
 class Player:
     def __init__(self,gravity,maxYvel=50,maxXvel=10,img=None):
@@ -921,11 +991,11 @@ class Player:
         self.xpos += self.xvel
         self.ypos += self.yvel
 
-
 class Enemy:
     def __init__(self,xpos,ypos,maxXvel=5,maxYvel=50,gravity=0.981,img=None):
         self.xpos = xpos
         self.ypos = ypos
+        self.center = [self.xpos,self.ypos]
         self.xvel = 0
         self.yvel = 0
         self.lastYvel = 0
@@ -933,19 +1003,21 @@ class Enemy:
         self.maxXvel = maxXvel
         self.maxYvel = maxYvel
         self.gravity = gravity
-        self.target = []
+        self.target = [0,0]
         self.maxTargetDist = 500
+        self.canSeeTarget = False
         self.img = img
         self.needsDel = False
         self.wallData = [False,False,False,False,False]
         self.hitbox = Mob_Hitbox()
 
     def pathfind(self):
-        if self.get_dist(self.target) < self.maxTargetDist:
-            if self.target[0] > self.xpos:
+        self.canSeeTarget = self.get_dist(self.target) < self.maxTargetDist
+        if self.canSeeTarget:
+            if self.target[0] > self.center[0]:
                 self.xvel += self.xInc
                 #print(">")
-            elif self.target[0] < self.xpos:
+            elif self.target[0] < self.center[0]:
                 self.xvel -= self.xInc
                 #print("<")
         else:
@@ -1001,7 +1073,6 @@ class Enemy:
 
         self.xpos += self.xvel
         self.ypos += self.yvel
-        
 
     def update_target(self,pos):
         self.target = list(pos)
@@ -1010,15 +1081,161 @@ class Enemy:
         return math.sqrt((pos[0]-self.xpos)**2+(pos[1]-self.ypos)**2)
 
     def get_angle(self,pos):
-        dx = pos[0] - self.xpos
-        dy = pos[1] - self.ypos
-        return math.atan2(dy,dx)
+        dx = self.xpos - pos[0]
+        dy = self.ypos - pos[1]
+        return math.degrees(math.atan(dy/dx))
 
+    def fix_center(self):
+        self.center = [self.xpos, self.ypos]
+
+class Boss(Enemy):
+    def __init__(self,xpos,ypos,img,maxXvel=6,maxYvel=50,health=200,gravity=0.981):
+        super().__init__(xpos,ypos,maxXvel=maxXvel,maxYvel=maxYvel,gravity=0.981,img=img)
+        self.maxHealth = health
+        self.health = self.maxHealth
+        self.xcen = self.img.get_width()
+        self.ycen = self.img.get_height()-50
+        self.hb = u.healthBar(0,0,self.maxHealth)
+        self.hb.width = 150
+        self.hb.height = 30
+        self.maxTargetDist = 1000
+
+        self.projectiles = []
+
+        self.vulnerable = False
+        self.charge = 0
+        self.chargeInterval = 500
+        self.maxCharge = 10
+        self.lastCharge = 0  # stores the time of the last charge increment
+        self.firing = False
+        self.lastFire = 0
+        self.fireInterval = 300
+        self.state = 1
+        self.lastStateChange = 0
+        self.stateChangeInterval = 3000
+
+    def draw(self):
+        blitToCam(self.img,(self.xpos-self.xcen,self.ypos-self.ycen))
+        self.hb.draw()
+
+        #sendToCam(list(self.hitbox.bottom), "hitbox", col=colour.white)
+        #sendToCam(list(self.hitbox.left),"hitbox",col=colour.white)
+        #sendToCam(list(self.hitbox.right),"hitbox",col=colour.white)
+        #sendToCam(list(self.hitbox.top),"hitbox",col=colour.white)
+        #sendToCam(list(self.hitbox.whole),"hitbox",col=colour.white)
+
+    def update_hitbox(self):
+        pos = get_screen_pos((self.xpos, self.ypos,0,0))
+        self.hb.hp = self.health
+        self.hb.xpos = pos[0] - 200
+        self.hb.ypos = pos[1] - 250
+
+        self.hitbox.whole = toRect([self.xpos - self.xcen, self.ypos - self.ycen, self.xcen, self.ycen+50])
+        self.hitbox.top = toRect([self.xpos - self.xcen, self.ypos - self.ycen, self.xcen, 10])
+        self.hitbox.bottom = toRect([self.xpos - self.xcen, self.ypos + self.ycen//2 - 60, self.xcen, 10])
+        self.hitbox.left = toRect([self.xpos - self.xcen, self.ypos - self.ycen, 10, self.ycen-5])
+        self.hitbox.right = toRect([self.xpos - 10, self.ypos - self.ycen, 10, self.ycen-5])
+
+        self.hitbox.actWhole = toRect(get_actual_pos([self.xpos - self.xcen, self.ypos - self.ycen, self.xcen, self.ycen+50]))
+        self.hitbox.actTop = toRect(get_actual_pos([self.xpos - self.xcen, self.ypos - self.ycen, self.xcen, 10]))
+        self.hitbox.actBottom = toRect(get_actual_pos([self.xpos - self.xcen, self.ypos + self.ycen//2 - 60, self.xcen, 10]))
+        self.hitbox.actLeft = toRect(get_actual_pos([self.xpos - self.xcen, self.ypos - self.ycen, 10, self.ycen-5]))
+        self.hitbox.actRight = toRect(get_actual_pos([self.xpos - 10, self.ypos - self.ycen, 10, self.ycen-5]))
+
+    def wepaon_sequence(self):
+        if self.state == 1: # passive
+            if now() - self.lastStateChange > self.stateChangeInterval:
+                self.lastStateChange = now()
+                self.state += 1
+
+        elif self.state == 2: #charging
+            self.vulnerable = True
+            if now() - self.lastCharge > self.chargeInterval:
+                self.lastCharge = now()
+                self.charge += 1
+            if self.charge >= self.maxCharge:
+                self.state += 1
+
+        elif self.state == 3:
+            self.firing = False
+            if now() - self.lastFire > self.fireInterval:
+                self.lastFire = now()
+                if self.charge > 0:
+                    self.charge -= 1
+                    self.firing = True
+                else:
+                    self.state = 1
+                    self.lastStateChange = now()
+                    self.vulnerable = False
+
+    def get_dist(self,pos):
+        return math.sqrt((pos[0]-self.xpos-self.xcen//2)**2+(pos[1]-self.ypos)**2)
+
+    def fix_center(self):
+        self.center = [self.xpos-self.xcen//2, self.ypos]
+
+    def tick_projectiles(self):
+        toDel = []
+        for item in self.projectiles:
+            item.tick()
+            if item.needsDel:
+                toDel.append(item)
+
+        for item in toDel:
+            self.projectiles.remove(item)
+
+class Boss_Projectile:
+    def __init__(self,xpos,ypos,target):
+        self.xpos = xpos
+        self.ypos = ypos
+        self.target = [target[0],target[1]-10]
+        self.col = [50,0,0] if random.randint(1,2) == 1 else [75,20,0]
+        self.speed = 7
+        startAngle = random.randint(0, 359)
+        self.initalXmove = (self.speed * math.cos(math.radians(startAngle)))
+        self.initialYmove = (self.speed * math.sin(math.radians(startAngle)))
+        self.birth = now()
+        self.life = 0 # how long it has existed for
+        self.needsDel = False
+        self.history = []
+
+    def tick(self):
+        self.life = now() - self.birth
+        if self.life < 1000: # move outward
+            self.xpos += self.initalXmove
+            self.ypos += self.initialYmove
+        else: # find player
+            playerBearing =  self.get_angle(self.target)
+            self.xpos -= (self.speed * math.cos(math.radians(playerBearing)))
+            self.ypos -= (self.speed * math.sin(math.radians(playerBearing)))
+
+        if self.life > 5000:
+            self.needsDel = True
+
+
+        self.history.insert(0,(self.xpos,self.ypos))
+        while len(self.history) > 20:
+            self.history.pop(-1)
+
+        for position in self.history:
+            pos = get_screen_pos((position[0], position[1], 0, 0))
+            idx = self.history.index(position)
+            size = 30-idx
+            if size<10: size = 10
+            pygame.draw.rect(SCREEN, self.col, (pos[0], pos[1],size,size))
+        #for _ in range(3):
+        #    pygame.draw.circle(SCREEN, self.col, (pos[0]+random.randint(-60,60), pos[1]+random.randint(-60,60)), 5)
+
+    def get_angle(self,pos):
+        dx = self.xpos - pos[0]
+        dy = self.ypos - pos[1]
+        return math.degrees(math.atan(dy/dx))
 
 class Animation:
     def __init__(self,xpos,ypos):
         self.frame = 0
         self.interval = 100
+        self.name = "none"
         self.xpos = xpos
         self.ypos = ypos
         self.finished = False
@@ -1028,7 +1245,6 @@ class Animation:
         if now() - self.lastChange > self.interval:
             self.frame += 1
             self.lastChange = now()
-            
 
 class Impact_Particle(Animation):
     def __init__(self,xpos,ypos,col):
@@ -1114,7 +1330,6 @@ class Death_Particle(Animation):
         for item in rects:
             pygame.draw.rect(SCREEN,self.col,get_screen_pos(item))
 
-
 class Star_Particle(Animation):
     def __init__(self,xpos,ypos,col):
         super().__init__(xpos,ypos)
@@ -1132,7 +1347,50 @@ class Star_Particle(Animation):
                     [self.xpos+self.size+random.randint(-20,20),
                      self.ypos+self.size+random.randint(-20,20),
                      random.randint(3,5),random.randint(3,5)]))
-        
+
+class Code_Particle(Animation):
+    def __init__(self,xpos,ypos,imgs):
+        super().__init__(xpos,ypos)
+        self.interval = 200
+        self.imgs = imgs
+        self.name = "code particle"
+
+    def draw(self):
+        blitToCam(self.imgs[random.randint(0,len(self.imgs)-1)],(self.xpos,self.ypos))
+        if self.frame >= 5:
+            self.finished = True
+
+class Charge_Up(Animation):
+    def __init__(self,xpos,ypos):
+        super().__init__(xpos,ypos)
+        self.interval = 50
+        self.col = [50,0,0] if random.randint(1,2) == 1 else [75,20,0]
+        self.xpos = xpos
+        self.ypos = ypos
+        self.name = "charge up"
+        startAngle = random.randint(0,359)
+        self.xInt = (150*math.cos(math.radians(startAngle))) /10
+        self.yInt = (150*math.sin(math.radians(startAngle)))/10
+
+    def draw(self):
+        s = (10-self.frame)
+        rect = [self.xpos + (self.xInt * s),
+                self.ypos + (self.yInt * s),
+                self.frame*5, self.frame*5]
+        pygame.draw.rect(SCREEN,self.col,get_screen_pos(rect))
+        if self.frame >= 10:
+            self.frame = 10
+            self.finished = True
+
+class Here(Animation):
+    def __init__(self,xpos,ypos):
+        super().__init__(xpos,ypos)
+
+    def draw(self):
+        if self.frame > 20:
+            self.finished = True
+        pygame.draw.rect(SCREEN,colour.white,get_screen_pos([self.xpos-20,self.ypos-20,40,40]),width=3)
+
 ##################################################
 
 
@@ -1228,7 +1486,6 @@ def sendToCam(item,name=None,col=None):
 
 def blitToCam(item,pos):
     SCREEN.blit(item,((SCRW//2)-player.xpos+pos[0],(SCRH//2)-player.ypos+pos[1]))
-                                   
 
 def get_screen_pos(thing):
     '''Actual position -> Screen position'''
@@ -1237,7 +1494,6 @@ def get_screen_pos(thing):
 def get_actual_pos(thing):
     '''Screen position -> Actual position'''
     return [thing[0]+player.xpos-(SCRW//2),thing[1]+player.ypos-(SCRH//2),thing[2],thing[3]]
-
 
 def toRect(alist=[0,0,0,0]):
     if len(alist) == 4:
@@ -1299,6 +1555,7 @@ def tick_boxes():
 
     if levelsBox.isPressed():
         game.scene = "levels"
+        game.init_clouds()
 
     if settingsBox.isPressed():
         game.scene = "settings"
@@ -1312,7 +1569,6 @@ def tick_boxes():
         game.stats.deaths = 0
         game.stats.playTime = 0
         game.fix_stats_stars()
-        
 
 def spike_convert(item,orn=0):
     if orn == 0:
@@ -1326,7 +1582,6 @@ def spike_convert(item,orn=0):
     else:
         raise SyntaxError("Cannot have a spike of that orientation")
     #return [item[0],item[1],40,30]
-
 
 def go_quit():
     with open("stats.json","w") as file:
@@ -1342,7 +1597,6 @@ def go_quit():
 
 def now():
     return pygame.time.get_ticks()
-
 
 def handle_events(move):
     global SCRW,SCRH
