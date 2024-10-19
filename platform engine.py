@@ -350,15 +350,14 @@ class Game:
                 mob.tick()
                 mob.pathfind()
 
-            if True:
                 #print(f"Boss state: {mob.state}")
-                if mob.state == 2:
-                    self.animations.append(Charge_Up(mob.xpos-125, mob.ypos - 350))
-                elif mob.state == 3 and mob.firing:
-                    mob.update_target((self.player.xpos, self.player.ypos))
-                    mob.projectiles.append(Boss_Projectile(mob.xpos-125,mob.ypos-350,mob.target))
+            if mob.state == 2:
+                self.animations.append(Charge_Up(mob.xpos-125, mob.ypos - 350))
+            elif mob.state == 3 and mob.firing:
+                mob.projectiles.append(Boss_Projectile(mob.xpos-125,mob.ypos-350,mob.target))
 
             for item in mob.projectiles:
+                item.target = mob.target
                 if pygame.Rect.colliderect(self.player.hitbox.whole, toRect((item.xpos, item.ypos, 30, 30))):
                     self.trigger_death(die=True)
                 for plat in self.platforms:
@@ -441,6 +440,8 @@ class Game:
 ##        playerRect = pygame.Rect(self.player.xpos-25,self.player.ypos-25,50,50)
         self.player.wallData = [False,False,False,False,False]
         for mob in self.entities:
+            mob.wallData = [False,False,False,False,False]
+        for mob in self.bossEntities:
             mob.wallData = [False,False,False,False,False]
 
         for item in self.platforms:
@@ -554,6 +555,12 @@ class Game:
                 if enemy.lastYvel != 0:
                     self.animations.append(Impact_Particle(enemy.xpos,enemy.ypos+14,colour.darkgrey))
                     #print(f"last:{enemy.lastYvel} now {enemy.yvel}")
+
+        for enemy in self.bossEntities:
+            if enemy.wallData[0] and enemy.yvel == 0:
+                enemy.ypos = ((enemy.ypos // 50) * 50)
+                if enemy.lastYvel != 0:
+                    self.animations.append(Impact_Particle(enemy.xpos,enemy.ypos+14,colour.darkgrey))
 
         if self.player.wallData[3] and self.player.yvel < 0:# and not self.player.wallData[0]: # top only
             self.player.wallData[1] = False
@@ -1080,16 +1087,16 @@ class Enemy:
     def get_dist(self,pos):
         return math.sqrt((pos[0]-self.xpos)**2+(pos[1]-self.ypos)**2)
 
-    def get_angle(self,pos):
+    def get_angle(self, pos):
         dx = self.xpos - pos[0]
         dy = self.ypos - pos[1]
-        return math.degrees(math.atan(dy/dx))
+        return math.degrees(math.atan2(dy, dx)) + 180
 
     def fix_center(self):
         self.center = [self.xpos, self.ypos]
 
 class Boss(Enemy):
-    def __init__(self,xpos,ypos,img,maxXvel=6,maxYvel=50,health=200,gravity=0.981):
+    def __init__(self,xpos,ypos,img,maxXvel=6,maxYvel=50,health=600,gravity=0.981):
         super().__init__(xpos,ypos,maxXvel=maxXvel,maxYvel=maxYvel,gravity=0.981,img=img)
         self.maxHealth = health
         self.health = self.maxHealth
@@ -1099,7 +1106,6 @@ class Boss(Enemy):
         self.hb.width = 150
         self.hb.height = 30
         self.maxTargetDist = 1000
-
         self.projectiles = []
 
         self.vulnerable = False
@@ -1190,7 +1196,7 @@ class Boss_Projectile:
         self.ypos = ypos
         self.target = [target[0],target[1]-10]
         self.col = [50,0,0] if random.randint(1,2) == 1 else [75,20,0]
-        self.speed = 7
+        self.speed = 6
         startAngle = random.randint(0, 359)
         self.initalXmove = (self.speed * math.cos(math.radians(startAngle)))
         self.initialYmove = (self.speed * math.sin(math.radians(startAngle)))
@@ -1201,15 +1207,16 @@ class Boss_Projectile:
 
     def tick(self):
         self.life = now() - self.birth
-        if self.life < 1000: # move outward
+        if self.life < 500: # move outward
             self.xpos += self.initalXmove
             self.ypos += self.initialYmove
         else: # find player
-            playerBearing =  self.get_angle(self.target)
-            self.xpos -= (self.speed * math.cos(math.radians(playerBearing)))
-            self.ypos -= (self.speed * math.sin(math.radians(playerBearing)))
+            playerBearing =  self.get_angle(self.target) % 360
+            self.xpos += (self.speed * math.cos(math.radians(playerBearing)))
+            self.ypos += (self.speed * math.sin(math.radians(playerBearing)))
 
-        if self.life > 5000:
+
+        if self.life > 8000:
             self.needsDel = True
 
 
@@ -1229,7 +1236,7 @@ class Boss_Projectile:
     def get_angle(self,pos):
         dx = self.xpos - pos[0]
         dy = self.ypos - pos[1]
-        return math.degrees(math.atan(dy/dx))
+        return math.degrees(math.atan2(dy,dx))+180
 
 class Animation:
     def __init__(self,xpos,ypos):
