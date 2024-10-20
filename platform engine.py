@@ -269,6 +269,7 @@ class Game:
             self.clouds.remove(item)
 
     def init_clouds(self):
+        self.clouds = []
         for i in range(10):
             typ = random.randint(0, 2)
             self.clouds.append(Cloud(typ, self.img.cloud[str(self.scale)][typ]))
@@ -511,6 +512,8 @@ class Game:
                 if pygame.Rect.colliderect(self.player.hitbox.actWhole,toRect(get_actual_pos(newItem))):
                     if self.player.yvel > -10:
                         self.player.yvel -= 0.5 + self.player.gravity
+                    if self.player.wallData[0]:
+                        self.player.yvel = -1
 ##                    self.player.ypos -= 10
                     break
 
