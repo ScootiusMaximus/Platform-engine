@@ -54,7 +54,7 @@ class old_textbox:
         except NotImplementedError:
             left, right, up, down = False, False, False, False
 
-        if up and down and left and right and self.isShowing:
+        if up and down and left and right and self.isShowing: #and pygame.mouse.get_pressed()[0]:
             if not self.wasPressed:
                 pressed = True
 
@@ -97,3 +97,22 @@ class rainbow:
 
     def get(self):
         return((self.r,self.g,self.b))
+
+class healthBar:
+    def __init__(self, xpos, ypos, maxhp=10):
+        self.maxhp = maxhp
+        self.hp = maxhp
+        self.xpos = xpos
+        self.ypos = ypos
+        self.col = (0, 255, 0)
+        self.inc = 255 / self.maxhp
+        self.width = 25
+        self.height = 10
+
+    def draw(self):
+        val = 255 - ((self.maxhp - self.hp) * self.inc)
+        if val <= 0: val = 0
+        self.col = (255 - val, val, 0)
+        size = self.width * (self.hp / self.maxhp)
+        pygame.draw.rect(SCREEN, self.col,(self.xpos, self.ypos, size, self.height))
+        pygame.draw.rect(SCREEN, (255,255,255), (self.xpos, self.ypos, self.width, self.height),width=3)
