@@ -36,14 +36,15 @@ class Images:
         self.tick = pygame.transform.scale_by(pygame.image.load("tick.png"),(0.2))
         self.bossImg = pygame.image.load("boss face.png")
         self.bossMenu = pygame.transform.scale_by(pygame.image.load("boss face.png"),0.2)
+        self.buttonUnpressed = pygame.image.load("button_unpressed.png")
+        self.buttonPressed = pygame.image.load("button_pressed.png")
         self.cloud = {"1":[pygame.image.load("cloud1.png"),
                           pygame.image.load("cloud2.png"),
                           pygame.image.load("cloud3.png")]}
         self.code = []
-
         for i in range(10):
             name = f"code{i+1}.png"
-            self.code.append(pygame.image.load(name),)
+            self.code.append(pygame.image.load(name))
         
         blank = pygame.image.load("enemy_body.png")
         pygame.draw.circle(blank,colour.white,(20,15),10)
@@ -119,9 +120,15 @@ class Level_slots:
 
     def tick(self):
         if self.num > 15 and ((math.ceil(self.num/15) != self.page)):
+            self.nextBox.isShowing = True
             self.nextBox.display()
+        else:
+            self.nextBox.isShowing = False
         if self.num > 15 and ((math.ceil(self.num/15) != 1)):
+            self.prevBox.isShowing = True
             self.prevBox.display()
+        else:
+            self.prevBox.isShowing = False
 
         if self.nextBox.isPressed():
             self.page += 1
@@ -194,6 +201,8 @@ class Game:
         self.entities = []
         self.bosses = []
         self.bossEntities = []
+        self.buttons = []
+        self.buttonPresses = []
 
         self.animations = []
         self.spawnPoint = []
@@ -365,7 +374,6 @@ class Game:
                     if pygame.Rect.colliderect(toRect(plat),toRect((item.xpos,item.ypos,30,30))):
                         item.needsDel = True
 
-
     def tick_player(self):
 ##        self.player.wallData = self.player.check()
         self.player.lastIsDead = self.player.isDead
@@ -527,6 +535,10 @@ class Game:
                 if pygame.Rect.colliderect(mob.hitbox.actWhole,self.player.hitbox.actWhole):
                     self.trigger_death()
 
+        for item in self.buttons:
+            if pygame.Rect.colliderect(self.player.hitbox.actWhole,get_actual_pos((item[0],item[1],50,50))):
+                self.buttonPresses[self.buttons.index(item)] = True
+
     def draw_animations(self):
         toDel = []
         for item in self.animations:
@@ -587,11 +599,13 @@ class Game:
         self.checkpoints = []
         self.bosses = []
         self.bossEntities = []
+        self.buttons = []
+        self.buttonPresses = []
 
         self.animations = []
         self.spawnPoint = []
 
-        try:
+        try: # correct outdated levels
             if "start" not in self.data[str(self.levelIDX)]:
                 self.data[str(self.levelIDX)]["start"] = [0,0]
             if "end" not in self.data[str(self.levelIDX)]:
@@ -612,8 +626,10 @@ class Game:
                 self.data[str(self.levelIDX)]["checkpoints"] = []
             if "bosses" not in self.data[str(self.levelIDX)]:
                 self.data[str(self.levelIDX)]["bosses"] = []
+            if "buttons" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["buttons"] = []
             
-        except KeyError:
+        except KeyError: # should only happen if missing the whole level number
             self.data[str(self.levelIDX)] = {
                 "start":[0,0],
                 "end":[300,0],
@@ -624,7 +640,8 @@ class Game:
                 "stars":[],
                 "mobs":[],
                 "checkpoints":[],
-                "bosses":[]}
+                "bosses":[],
+                "buttons":[]}
 
         try:
             self.platformCol = self.data[str(self.levelIDX)]["platform colour"]
@@ -654,10 +671,15 @@ class Game:
         for item in self.data[str(self.levelIDX)]["bosses"]:
             self.bosses.append([item[0],item[1]])
             self.bossEntities.append(Boss(item[0],item[1],img=self.img.bossImg))
+        for item in self.data[str(self.levelIDX)]["buttons"]:
+            self.buttons.append([item[0],item[1]])
+            self.buttonPresses.append(False)
 
         self.orient_spikes()
 
     def draw_bg(self):
+        # why tf am I getting everything from the json file I have them stored in lists whyyyy
+        blitToCam(self.img.finish, self.data[str(self.levelIDX)]["end"])  # VERY INEFFICIENT FIX ME
         for item in self.data[str(self.levelIDX)]["platforms"]:
             sendToCam(item,col=self.platformCol)
         for i in range(len(self.data[str(self.levelIDX)]["spikes"])):
@@ -666,7 +688,6 @@ class Game:
         #for item in self.spikes:
         #    orn = self.spikeDir[self.spikes.index(item)]
         #    sendToCam(spike_convert(item,orn),"hitbox")
-        blitToCam(self.img.finish,self.data[str(self.levelIDX)]["end"]) # VERY INEFFICIENT FIX ME
         for item in self.data[str(self.levelIDX)]["fan bases"]:
             sendToCam(item,"fan base")
         for item in self.data[str(self.levelIDX)]["fan columns"]:
@@ -681,6 +702,13 @@ class Game:
                 blitToCam(self.img.checkpointOn,item)
             else:
                 blitToCam(self.img.checkpointOff,item)
+
+        if self.scene == "ingame":
+            for item in self.data[str(self.levelIDX)]["buttons"]:
+                if self.buttonPresses[self.data[str(self.levelIDX)]["buttons"].index(item)]:
+                    blitToCam(self.img.buttonPressed, item)
+                else:
+                    blitToCam(self.img.buttonUnpressed, item)
             
         if self.scene == "editor":
             for item in self.data[str(self.levelIDX)]["mobs"]:
@@ -688,6 +716,9 @@ class Game:
 
             for item in self.data[str(self.levelIDX)]["bosses"]:
                 blitToCam(self.img.bossImg,(item[0]-200,item[1]-200))
+
+            for item in self.data[str(self.levelIDX)]["buttons"]:
+                blitToCam(self.img.buttonUnpressed, item)
 
     def draw_grid(self):
         for i in range((SCRW//50)+2):
@@ -722,6 +753,9 @@ class Game:
         SCREEN.blit(self.img.checkpointOn,(10,425))
         # checkpoint
         SCREEN.blit(self.img.bossMenu,(10,485))
+        # boss
+        SCREEN.blit(self.img.buttonUnpressed, (10, 540))
+        # button
 
     def check_selected(self):
         mouseRect = toRect(self.editor.mouseRect)
@@ -818,9 +852,11 @@ class Game:
                 elif self.editor.selected == "boss":
                     self.data[str(self.levelIDX)]["bosses"].append(truncPos)
 
+                elif self.editor.selected == "button":
+                    self.data[str(self.levelIDX)]["buttons"].append(truncPos)
+
                 self.update_level(next=False)
-                
-                
+
             if self.editor.clicksR == [True,False]: #RMB
                 for item in self.spikes:
                     orn = self.spikeDir[self.spikes.index(item)]
@@ -858,6 +894,11 @@ class Game:
                         self.data[str(self.levelIDX)]["bosses"].remove(item)
                         self.bosses.remove(item)
 
+                for item in self.buttons:
+                    if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
+                        self.data[str(self.levelIDX)]["buttons"].remove(item)
+                        self.buttons.remove(item)
+
                 self.update_level(next=False)          
 
 class Editor:
@@ -872,7 +913,7 @@ class Editor:
         self.selected = "platform"
 
         self.itemRects = []
-        self.ref = ["platform","spike","end","fan base","fan column","star","enemy","checkpoint","boss"]
+        self.ref = ["platform","spike","end","fan base","fan column","star","enemy","checkpoint","boss","button"]
 
         for i in range(15):
             y = i*60
@@ -1527,6 +1568,12 @@ def repos_boxes():
     settingsBox.pos = (SCRW//1.3,500)
     showFPSBox.pos = (SCRW//2,150)
     FPSBox.pos = (SCRW-50,SCRH-50)
+    statsTitleBox.pos = (SCRW//2,300)
+    collectedStarsBox.pos = (SCRW//2,400)
+    enemiesDefeatedBox.pos = (SCRW//2,450)
+    deathCountBox.pos = (SCRW//2,500)
+    uptimeBox.pos = (SCRW//2,550)
+    resetStatsBox.pos = (SCRW//5,550)
 
 def tick_boxes():
     for item in boxes:
@@ -1577,7 +1624,7 @@ def tick_boxes():
         game.stats.stars = {}
         game.stats.enemiesKilled = 0
         game.stats.deaths = 0
-        game.stats.playTime = 0
+        #game.stats.playTime = 0
         game.fix_stats_stars()
 
 def spike_convert(item,orn=0):
