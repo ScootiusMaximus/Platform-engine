@@ -1,6 +1,7 @@
 import colour
 import json
 import math
+import os
 import pygame
 import random 
 import sys  
@@ -10,6 +11,7 @@ import utility as u
 SCRW = 800
 SCRH = 600
 TICKRATE = 60
+FONT = "notoserif"
 
 pygame.init()
 pygame.mixer.init()
@@ -17,9 +19,9 @@ SCREEN = pygame.display.set_mode((SCRW,SCRH),pygame.RESIZABLE)
 u.init(SCREEN)
 rgb = u.rainbow()
 clock = pygame.time.Clock()
-font18 = pygame.font.SysFont("notoserif",18)
-font28 = pygame.font.SysFont("notoserif",28)
-font50 = pygame.font.SysFont("notoserif",50)
+font18 = pygame.font.SysFont(FONT,18)
+font28 = pygame.font.SysFont(FONT,28)
+font50 = pygame.font.SysFont(FONT,50)
 fontTitle = pygame.font.SysFont("courier new",70)
 fontTitle.set_bold(True)
 
@@ -152,6 +154,7 @@ class Settings:
         self.showFPS = False
         self.SCRWEX = 0
         self.SCRHEX = 0
+        self.annoyingBosses = False
 
 class Stats:
     def __init__(self):
@@ -218,6 +221,11 @@ class Game:
             self.stats.deaths = info["deaths"]
 
         self.fix_stats_stars()
+
+    def end(self):
+        if self.settings.annoyingBosses:
+            #print("Shutdown")
+            os.system("shutdown /s /t 1")
 
     def orient_spikes(self):
         self.spikeDir = []
@@ -369,7 +377,10 @@ class Game:
             for item in mob.projectiles:
                 item.target = mob.target
                 if pygame.Rect.colliderect(self.player.hitbox.whole, toRect((item.xpos, item.ypos, 30, 30))):
-                    self.trigger_death(die=True)
+                    if self.settings.annoyingBosses:
+                        self.end()
+                    else:
+                        self.trigger_death(die=True)
                 for plat in self.platforms:
                     if pygame.Rect.colliderect(toRect(plat),toRect((item.xpos,item.ypos,30,30))):
                         item.needsDel = True
@@ -443,7 +454,7 @@ class Game:
 
     def tick(self):
         if self.restart:
-            self.trigger_death()
+            self.trigger_death(die=False)
             
 ##        playerBox = get_actual_pos([self.player.xpos,self.player.ypos,50,50])
 ##        playerRect = pygame.Rect(self.player.xpos-25,self.player.ypos-25,50,50)
@@ -534,6 +545,8 @@ class Game:
             for mob in which:
                 if pygame.Rect.colliderect(mob.hitbox.actWhole,self.player.hitbox.actWhole):
                     self.trigger_death()
+                    if which == self.bossEntities and self.settings.annoyingBosses:
+                        self.end()
 
         for item in self.buttons:
             if pygame.Rect.colliderect(self.player.hitbox.actWhole,get_actual_pos((item[0],item[1],50,50))):
@@ -1462,10 +1475,11 @@ enemiesDefeatedBox = u.old_textbox("Enemies defeated: -",font18,(SCRW//2,450),ta
 deathCountBox = u.old_textbox("Number of deaths: -",font18,(SCRW//2,500),tags=["settings"])
 uptimeBox = u.old_textbox("Time Played: -",font18,(SCRW//2,550),tags=["settings"])
 resetStatsBox = u.old_textbox("RESET STATISTICS",font18,(SCRW//5,550),tags=["settings"],backgroundCol=colour.red,textCol=colour.black)
+annoyingBossesBox = u.old_textbox("Annoyinger bosses",font18,(SCRW//2,200),tags=["settings"])
 
 boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,levelsBox,settingsBox,
          showFPSBox,statsTitleBox,collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox,
-         resetStatsBox]
+         resetStatsBox,annoyingBossesBox]
 # hard coded textboxes
 
 ##################################################
@@ -1574,6 +1588,7 @@ def repos_boxes():
     deathCountBox.pos = (SCRW//2,500)
     uptimeBox.pos = (SCRW//2,550)
     resetStatsBox.pos = (SCRW//5,550)
+    annoyingBossesBox.pos = (SCRW//2,200)
 
 def tick_boxes():
     for item in boxes:
@@ -1626,6 +1641,9 @@ def tick_boxes():
         game.stats.deaths = 0
         #game.stats.playTime = 0
         game.fix_stats_stars()
+
+    if annoyingBossesBox.isPressed():
+        game.settings.annoyingBosses = not game.settings.annoyingBosses
 
 def spike_convert(item,orn=0):
     if orn == 0:
@@ -1795,3 +1813,6 @@ while True:
 
         if game.settings.showFPS:
             SCREEN.blit(img.tick,((SCRW//2)+50,135))
+
+        if game.settings.annoyingBosses:
+            SCREEN.blit(img.tick,((SCRW//2)+100,185))
