@@ -40,6 +40,7 @@ class Images:
         self.bossMenu = pygame.transform.scale_by(pygame.image.load("boss face.png"),0.2)
         self.buttonUnpressed = pygame.image.load("button_unpressed.png")
         self.buttonPressed = pygame.image.load("button_pressed.png")
+        self.link = pygame.image.load("link.png")
         self.cloud = {"1":[pygame.image.load("cloud1.png"),
                           pygame.image.load("cloud2.png"),
                           pygame.image.load("cloud3.png")]}
@@ -85,18 +86,35 @@ class Soundboard:
         self.jump = pygame.mixer.Sound("jump.wav")
         self.fall = pygame.mixer.Sound("fall.wav")
 
+        self.musicIdx = 0
         self.music = [
             pygame.mixer.Sound("Track 1.wav")
             ]
 
-        self.channels = [pygame.mixer.Channel(0)]
+        self.channels = [pygame.mixer.Channel(0), # fall
+                         pygame.mixer.Channel(1), # music
+                         pygame.mixer.Channel(2)] # jump
+
         self.enabled = True
 
     def start_fall(self):
-        self.channels[0].play(self.fall)
+        if not self.channels[0].get_busy():
+            self.channels[0].play(self.fall,fade_ms=1000)
 
     def end_fall(self):
         self.channels[0].stop()
+
+    def start_jump(self):
+        if not self.channels[2].get_busy():
+            self.channels[2].play(self.jump,fade_ms=1000)
+
+    def run_music(self):
+        if not self.channels[1].get_busy():
+            self.musicIdx += 1
+            if self.musicIdx >= len(self.music):
+                self.musicIdx = 0
+
+            self.channels[1].play(self.music[self.musicIdx])
 
 class Level_slots:
     def __init__(self,num):
@@ -206,6 +224,14 @@ class Game:
         self.bossEntities = []
         self.buttons = []
         self.buttonPresses = []
+        self.disappearingPlatforms = []
+        self.disappearingPlatformLinks = []
+        self.appearingPlatforms = []
+        self.appearingPlatformLinks = []
+
+        self.events = []
+        # events should be:
+        # no enemies left, boss defeated
 
         self.animations = []
         self.spawnPoint = []
@@ -340,6 +366,17 @@ class Game:
         with open("levels.json","w") as file:
             file.write(json.dumps(self.data))
 
+    def tick_button_platforms(self):
+        # correct any links to buttons that dont exist anymore
+        for platform in self.disappearingPlatforms:
+            idx = self.disappearingPlatforms.index(platform)
+            if self.disappearingPlatformLinks[idx] > len(self.buttonPresses)-1:
+                self.disappearingPlatformLinks[idx] = -1
+        for platform in self.appearingPlatforms:
+            idx = self.appearingPlatforms.index(platform)
+            if self.appearingPlatformLinks[idx] > len(self.buttonPresses)-1:
+                self.appearingPlatformLinks[idx] = -1
+
     def tick_enemies(self):
         for mob in self.entities:
             mob.fix_center()
@@ -389,6 +426,11 @@ class Game:
 ##        self.player.wallData = self.player.check()
         self.player.lastIsDead = self.player.isDead
         self.player.lastYvel = self.player.yvel
+
+        if self.player.yvel > 5:
+            self.sound.start_fall()
+        else:
+            self.sound.end_fall()
         
         if not self.player.wallData[0]:
             if abs(self.player.yvel) > self.player.maxYvel:
@@ -423,15 +465,15 @@ class Game:
                 if self.player.wallData[0]:
                     self.player.yvel = -20
                     self.player.onFloor = False
-                    if self.sound.enabled: self.sound.jump.play()
+                    if self.sound.enabled: self.sound.start_jump()
             if self.player.wallData[1]:
                 self.player.yvel = -20
                 self.player.xvel = 10
-                if self.sound.enabled: self.sound.jump.play()
+                if self.sound.enabled: self.sound.start_jump()
             if self.player.wallData[2]:
                 self.player.yvel = -20
                 self.player.xvel = -10
-                if self.sound.enabled: self.sound.jump.play()
+                if self.sound.enabled: self.sound.start_jump()
             if self.player.wallData[2] and self.player.wallData[1]:
                 self.player.xvel = 0
 
@@ -464,6 +506,7 @@ class Game:
         for mob in self.bossEntities:
             mob.wallData = [False,False,False,False,False]
 
+
         for item in self.platforms:
             compItem = toRect(get_actual_pos(item))
             if pygame.Rect.colliderect(self.player.hitbox.actBottom,compItem):
@@ -489,6 +532,60 @@ class Game:
                         mob.wallData[3] = True
                     if pygame.Rect.colliderect(mob.hitbox.actWhole,compItem):
                         mob.wallData[4] = True
+
+        for i in range(len(self.disappearingPlatforms)):
+            compItem = toRect(get_actual_pos(self.disappearingPlatforms[i]))
+            if not self.buttonPresses[self.disappearingPlatformLinks[i]]:
+                if pygame.Rect.colliderect(self.player.hitbox.actBottom, compItem):
+                    self.player.wallData[0] = True
+                if pygame.Rect.colliderect(self.player.hitbox.actLeft, compItem):
+                    self.player.wallData[1] = True
+                if pygame.Rect.colliderect(self.player.hitbox.actRight, compItem):
+                    self.player.wallData[2] = True
+                if pygame.Rect.colliderect(self.player.hitbox.actTop, compItem):
+                    self.player.wallData[3] = True
+                if pygame.Rect.colliderect(self.player.hitbox.actWhole, compItem):
+                    self.player.wallData[4] = True
+
+                for which in [self.bossEntities, self.entities]:
+                    for mob in which:
+                        if pygame.Rect.colliderect(mob.hitbox.actBottom, compItem):
+                            mob.wallData[0] = True
+                        if pygame.Rect.colliderect(mob.hitbox.actLeft, compItem):
+                            mob.wallData[1] = True
+                        if pygame.Rect.colliderect(mob.hitbox.actRight, compItem):
+                            mob.wallData[2] = True
+                        if pygame.Rect.colliderect(mob.hitbox.actTop, compItem):
+                            mob.wallData[3] = True
+                        if pygame.Rect.colliderect(mob.hitbox.actWhole, compItem):
+                            mob.wallData[4] = True
+
+        for i in range(len(self.appearingPlatforms)):
+            compItem = toRect(get_actual_pos(self.appearingPlatforms[i]))
+            if self.buttonPresses[self.appearingPlatformLinks[i]]:
+                if pygame.Rect.colliderect(self.player.hitbox.actBottom, compItem):
+                    self.player.wallData[0] = True
+                if pygame.Rect.colliderect(self.player.hitbox.actLeft, compItem):
+                    self.player.wallData[1] = True
+                if pygame.Rect.colliderect(self.player.hitbox.actRight, compItem):
+                    self.player.wallData[2] = True
+                if pygame.Rect.colliderect(self.player.hitbox.actTop, compItem):
+                    self.player.wallData[3] = True
+                if pygame.Rect.colliderect(self.player.hitbox.actWhole, compItem):
+                    self.player.wallData[4] = True
+
+                for which in [self.bossEntities, self.entities]:
+                    for mob in which:
+                        if pygame.Rect.colliderect(mob.hitbox.actBottom, compItem):
+                            mob.wallData[0] = True
+                        if pygame.Rect.colliderect(mob.hitbox.actLeft, compItem):
+                            mob.wallData[1] = True
+                        if pygame.Rect.colliderect(mob.hitbox.actRight, compItem):
+                            mob.wallData[2] = True
+                        if pygame.Rect.colliderect(mob.hitbox.actTop, compItem):
+                            mob.wallData[3] = True
+                        if pygame.Rect.colliderect(mob.hitbox.actWhole, compItem):
+                            mob.wallData[4] = True
                 
         
         for item in self.spikes:
@@ -614,9 +711,16 @@ class Game:
         self.bossEntities = []
         self.buttons = []
         self.buttonPresses = []
+        self.disappearingPlatforms = []
+        self.disappearingPlatformLinks = []
+        self.appearingPlatforms = []
+        self.appearingPlatformLinks = []
+
+        self.spawnPoint = []
 
         self.animations = []
-        self.spawnPoint = []
+        self.events = [False,False]
+        # for all enemies defeated and bosses defeated
 
         try: # correct outdated levels
             if "start" not in self.data[str(self.levelIDX)]:
@@ -641,8 +745,16 @@ class Game:
                 self.data[str(self.levelIDX)]["bosses"] = []
             if "buttons" not in self.data[str(self.levelIDX)]:
                 self.data[str(self.levelIDX)]["buttons"] = []
+            if "disappearing platforms" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["disappearing platforms"] = []
+            if "disappearing platform links" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["disappearing platform links"] = []
+            if "appearing platforms" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["appearing platforms"] = []
+            if "appearing platform links" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["appearing platform links"] = []
             
-        except KeyError: # should only happen if missing the whole level number
+        except KeyError: # should only happen if missing the enitre level number
             self.data[str(self.levelIDX)] = {
                 "start":[0,0],
                 "end":[300,0],
@@ -654,7 +766,11 @@ class Game:
                 "mobs":[],
                 "checkpoints":[],
                 "bosses":[],
-                "buttons":[]}
+                "buttons":[],
+                "disappearing platforms":[],
+                "disappearing platform links": [],
+                "appearing platforms": [],
+                "appearing platform links":[]}
 
         try:
             self.platformCol = self.data[str(self.levelIDX)]["platform colour"]
@@ -683,10 +799,29 @@ class Game:
             self.checkpoints.append([item[0],item[1]])
         for item in self.data[str(self.levelIDX)]["bosses"]:
             self.bosses.append([item[0],item[1]])
-            self.bossEntities.append(Boss(item[0],item[1],img=self.img.bossImg))
+            health = 600 if not self.settings.annoyingBosses else 6000
+            self.bossEntities.append(Boss(item[0],item[1],img=self.img.bossImg,health=health))
         for item in self.data[str(self.levelIDX)]["buttons"]:
             self.buttons.append([item[0],item[1]])
             self.buttonPresses.append(False)
+
+        for item in self.data[str(self.levelIDX)]["disappearing platforms"]:
+            self.disappearingPlatforms.append(item)
+            self.disappearingPlatformLinks.append(-1)
+        for i in range(len(self.data[str(self.levelIDX)]["disappearing platform links"])):
+            try:
+                self.disappearingPlatformLinks[i] = self.data[str(self.levelIDX)]["disappearing platform links"][i]
+            except IndexError:
+                pass
+
+        for item in self.data[str(self.levelIDX)]["appearing platforms"]:
+            self.appearingPlatforms.append(item)
+            self.appearingPlatformLinks.append(-1)
+        for i in range(len(self.data[str(self.levelIDX)]["appearing platform links"])):
+            try:
+                self.appearingPlatformLinks[i] = self.data[str(self.levelIDX)]["appearing platform links"][i]
+            except IndexError:
+                pass
 
         self.orient_spikes()
 
@@ -722,6 +857,21 @@ class Game:
                     blitToCam(self.img.buttonPressed, item)
                 else:
                     blitToCam(self.img.buttonUnpressed, item)
+
+            for item in self.data[str(self.levelIDX)]["disappearing platforms"]:
+                plat = self.data[str(self.levelIDX)]["disappearing platforms"].index(item) #index of platform
+                idx = self.disappearingPlatformLinks[plat] # get which button it is linked to
+                #print(f"idx {idx}")
+                if idx != -1:
+                    if not self.buttonPresses[idx]:
+                        sendToCam(item, col=[80,80,100])
+
+            for item in self.data[str(self.levelIDX)]["appearing platforms"]:
+                plat = self.data[str(self.levelIDX)]["appearing platforms"].index(item)
+                idx = self.appearingPlatformLinks[plat]
+                if idx != -1:
+                    if self.buttonPresses[idx]:
+                        sendToCam(item, col=[180,180,200])
             
         if self.scene == "editor":
             for item in self.data[str(self.levelIDX)]["mobs"]:
@@ -733,6 +883,12 @@ class Game:
             for item in self.data[str(self.levelIDX)]["buttons"]:
                 blitToCam(self.img.buttonUnpressed, item)
 
+            for item in self.data[str(self.levelIDX)]["disappearing platforms"]:
+                sendToCam(item, col=[80,80,100])
+
+            for item in self.data[str(self.levelIDX)]["appearing platforms"]:
+                sendToCam(item, col=[180,180,200])
+
     def draw_grid(self):
         for i in range((SCRW//50)+2):
             x = (i*50) - (self.player.xpos%50) + (self.settings.SCRWEX//2)
@@ -743,32 +899,41 @@ class Game:
             pygame.draw.line(SCREEN,(220,220,255),(0,y),(SCRW,y))
 
     def draw_menu(self):
+        scr = self.editor.scroll#bind(-1000,self.editor.scroll,0)
         pygame.draw.rect(SCREEN,colour.lightgrey,(0,0,70,SCRH))
         pygame.draw.rect(SCREEN,colour.darkgrey,(0,0,70,SCRH),width=2)
         # frame
-        for item in self.editor.itemRects:
-            pygame.draw.rect(SCREEN,(180,180,180),item)
-        
-        pygame.draw.rect(SCREEN,colour.darkgrey,(10,30,50,10))
+        for item in self.editor.originalItemRects:
+            drawPos = [item[0],item[1]+scr,item[2],item[3]]
+            #print(drawPos)
+            pygame.draw.rect(SCREEN,(180,180,180),drawPos)
+
+        SCREEN.blit(self.img.link,(SCRW-100,SCRH-100))
+        # link image
+        pygame.draw.rect(SCREEN,colour.darkgrey,(10,30+scr,50,10))
         # platform icon
-        pygame.draw.polygon(SCREEN,colour.red,((30,110),(40,110),(35,80)))
+        pygame.draw.polygon(SCREEN,colour.red,((30,110+scr),(40,110+scr),(35,80+scr)))
         # spike icon
-        SCREEN.blit(self.img.finish,(3,125))
+        SCREEN.blit(self.img.finish,(3,125+scr))
         # finish
-        SCREEN.blit(self.img.fanBase,(10,180))
+        SCREEN.blit(self.img.fanBase,(10,180+scr))
         # fan base image
-        SCREEN.blit(self.img.fanColumn,(10,245))
+        SCREEN.blit(self.img.fanColumn,(10,245+scr))
         # fan column
-        SCREEN.blit(self.img.star,(10,305))
+        SCREEN.blit(self.img.star,(10,305+scr))
         # fan column
-        SCREEN.blit(self.img.enemyForEditor,(15,370))
+        SCREEN.blit(self.img.enemyForEditor,(15,370+scr))
         # enemy
-        SCREEN.blit(self.img.checkpointOn,(10,425))
+        SCREEN.blit(self.img.checkpointOn,(10,425+scr))
         # checkpoint
-        SCREEN.blit(self.img.bossMenu,(10,485))
+        SCREEN.blit(self.img.bossMenu,(10,485+scr))
         # boss
-        SCREEN.blit(self.img.buttonUnpressed, (10, 540))
+        SCREEN.blit(self.img.buttonUnpressed, (10, 540+scr))
         # button
+        pygame.draw.rect(SCREEN, colour.darkgrey, (10, 625 + scr, 50, 10))
+        # platform icon
+        pygame.draw.rect(SCREEN, colour.darkgrey, (10, 685 + scr, 50, 10))
+        # platform icon
 
     def check_selected(self):
         mouseRect = toRect(self.editor.mouseRect)
@@ -783,6 +948,12 @@ class Game:
                 break # cannot select two items at once
 
     def run_editor(self):
+        e = bind(-1000,self.editor.scroll,0) # short for extra
+        self.editor.scroll = e
+        for i in range(len(self.editor.itemRects)): # account for scrolling
+            r = self.editor.originalItemRects[i]
+            self.editor.itemRects[i] = [r[0],r[1]+e,r[2],r[3]]
+
         self.editor.mouseRect[0],self.editor.mouseRect[1] = pygame.mouse.get_pos()
         pygame.draw.rect(SCREEN,colour.red,self.editor.mouseRect)
 
@@ -798,119 +969,167 @@ class Game:
         if self.restart:
             self.trigger_death(die=False)
 
+        if self.editor.linkRect.pressed():
+            self.editor.linkMode = not self.editor.linkMode
+            if self.editor.linkMode:
+                self.editor.selected = "Hover over highlighted platform to link to event"
+            else:
+                self.editor.selected = "platform"
+
         # does not work
-        for which in ["platform","spike","fan base","fan column","star","mob","checkpoint"]:
-            for item in self.data[str(self.levelIDX)][which+"s"]:
-                if pygame.Rect.colliderect(toRect(newMouseRect),toRect(item)):
-                    sendToCam(item,col=colour.white,name="hitbox")
+        #for which in ["platform","spike","fan base","fan column","star","mob","checkpoint"]:
+        #    print(which)
+        #    for item in self.data[str(self.levelIDX)][which+"s"]:
+        #        print(item)
+        #        sendToCam(item,col=colour.white,name="hitbox")
         ###
+        if self.editor.linkMode:
+            for which in [self.disappearingPlatforms,self.appearingPlatforms]:
+                for item in which:
+                    sendToCam(item,col=colour.white,name="hitbox")
+                    if pygame.Rect.colliderect(toRect(item),newMouseRect):
+                        idx = which.index(item)
+                        if which == self.disappearingPlatforms:
+                            val = bind(0,self.disappearingPlatformLinks[idx]+self.editor.relativeScroll,len(self.buttons)-1)
+                            self.disappearingPlatformLinks[idx] = val
+                            #print(f"{self.data[str(self.levelIDX)]["disappearing platform links"]}")
+                            self.data[str(self.levelIDX)]["disappearing platform links"][idx] = val
+                            self.editor.selected = f"Linked to button {self.disappearingPlatformLinks[idx]+1}"
+                        elif which == self.appearingPlatforms:
+                            val = bind(0,self.appearingPlatformLinks[idx]+self.editor.relativeScroll,len(self.buttons)-1)
+                            self.appearingPlatformLinks[idx] = val
+                            self.data[str(self.levelIDX)]["appearing platform links"][idx] = val
+                            self.editor.selected = f"Linked to button {self.appearingPlatformLinks[idx]+1}"
 
-        if self.editor.selected == "platform":
-            if self.editor.clicks == [True,False]:
-                #add start coords
-                realx,realy = pygame.mouse.get_pos()
-                screenCoords = get_actual_pos((realx,realy,0,0))
-                self.editor.pendingRect[0] = (screenCoords[0]//50)*50
-                self.editor.pendingRect[1] = (screenCoords[1]//50)*50
-            elif self.editor.clicks == [True,True]:
-                #add finish coords
-                realx,realy = pygame.mouse.get_pos()
-                screenCoords = get_actual_pos((realx,realy,0,0))
-                self.editor.pendingRect[2] = ((screenCoords[0]//50)*50)-self.editor.pendingRect[0]
-                self.editor.pendingRect[3] = ((screenCoords[1]//50)*50)-self.editor.pendingRect[1]
-                sendToCam(self.editor.pendingRect,col=colour.white)
-            elif self.editor.clicks == [False,True]:
-                #save the new platform
-                if self.editor.pendingRect[2] > 0 and self.editor.pendingRect[3] > 0:
-                    self.data[str(self.levelIDX)]["platforms"].append(self.editor.pendingRect)
-                self.editor.pendingRect = [0,0,0,0]
-
-            if pygame.mouse.get_pressed()[2]:
-                # right click
-                for item in self.data[str(self.levelIDX)]["platforms"]:
-                    if pygame.Rect.colliderect(toRect(newMouseRect),toRect(item)):
-                        try:
-                            self.data[str(self.levelIDX)]["platforms"].remove(item)
-                        except ValueError:
-                            pass
+                        self.data[str(self.levelIDX)]["disappearing platform links"] = self.disappearingPlatformLinks
+                        self.data[str(self.levelIDX)]["appearing platform links"] = self.appearingPlatformLinks
         else:
-            if self.editor.clicks == [True,False]: # LMB
-                realx,realy = pygame.mouse.get_pos()
-                screenCoords = get_actual_pos((realx,realy,0,0))
-                truncPos = [(screenCoords[0]//50)*50, (screenCoords[1]//50)*50]                
-            
-                if self.editor.selected == "spike":
-                    newSpike = [truncPos[0],truncPos[1]+50]
-                    self.data[str(self.levelIDX)]["spikes"].append(newSpike)
-                    self.orient_spikes()
+            if self.editor.selected in ["platform","disappearing platform","appearing platform"]:
+                if self.editor.clicks == [True,False]:
+                    #add start coords
+                    realx,realy = pygame.mouse.get_pos()
+                    screenCoords = get_actual_pos((realx,realy,0,0))
+                    self.editor.pendingRect[0] = (screenCoords[0]//50)*50
+                    self.editor.pendingRect[1] = (screenCoords[1]//50)*50
+                elif self.editor.clicks == [True,True]:
+                    #add finish coords
+                    realx,realy = pygame.mouse.get_pos()
+                    screenCoords = get_actual_pos((realx,realy,0,0))
+                    self.editor.pendingRect[2] = ((screenCoords[0]//50)*50)-self.editor.pendingRect[0]
+                    self.editor.pendingRect[3] = ((screenCoords[1]//50)*50)-self.editor.pendingRect[1]
+                    sendToCam(self.editor.pendingRect,col=colour.white)
+                elif self.editor.clicks == [False,True]:
+                    #save the new platform
+                    if self.editor.pendingRect[2] > 0 and self.editor.pendingRect[3] > 0:
+                        if self.editor.selected == "platform":
+                            self.data[str(self.levelIDX)]["platforms"].append(self.editor.pendingRect)
+                        elif self.editor.selected == "disappearing platform":
+                            self.data[str(self.levelIDX)]["disappearing platforms"].append(self.editor.pendingRect)
+                            self.data[str(self.levelIDX)]["disappearing platform links"].append(-1)
+                        elif self.editor.selected == "appearing platform":
+                            self.data[str(self.levelIDX)]["appearing platforms"].append(self.editor.pendingRect)
+                            self.data[str(self.levelIDX)]["appearing platform links"].append(-1)
+                    self.editor.pendingRect = [0,0,0,0]
 
-                elif self.editor.selected == "end":
-                    self.data[str(self.levelIDX)]["end"] = truncPos
+                if self.editor.clicksR == [True,False]:
+                    # right click
+                    which = ""
+                    infoList = []
+                    if self.editor.selected == "platform":
+                        which = "platforms"
+                    elif self.editor.selected == "disappearing platform":
+                        which = "disappearing platforms"
+                        infoList = self.disappearingPlatformLinks
+                    elif self.editor.selected == "appearing platform":
+                        which = "appearing platforms"
+                        infoList = self.appearingPlatformLinks
 
-                elif self.editor.selected == "fan base":
-                    self.data[str(self.levelIDX)]["fan bases"].append(truncPos)
+                    for item in self.data[str(self.levelIDX)][which]:
+                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect(item)):
+                            try:
+                                self.data[str(self.levelIDX)][which].remove(item)
+                                idx = self.data[str(self.levelIDX)][which].index(item)
+                                infoList.pop(idx)
+                            except:
+                                pass
+            else:
+                if self.editor.clicks == [True,False]: # LMB
+                    realx,realy = pygame.mouse.get_pos()
+                    screenCoords = get_actual_pos((realx,realy,0,0))
+                    truncPos = [(screenCoords[0]//50)*50, (screenCoords[1]//50)*50]
 
-                elif self.editor.selected == "fan column":
-                    self.data[str(self.levelIDX)]["fan columns"].append(truncPos)
-
-                elif self.editor.selected == "star":
-                    self.data[str(self.levelIDX)]["stars"].append(truncPos)
-
-                elif self.editor.selected == "enemy":
-                    self.data[str(self.levelIDX)]["mobs"].append(truncPos)
-
-                elif self.editor.selected == "checkpoint":
-                    self.data[str(self.levelIDX)]["checkpoints"].append(truncPos)
-
-                elif self.editor.selected == "boss":
-                    self.data[str(self.levelIDX)]["bosses"].append(truncPos)
-
-                elif self.editor.selected == "button":
-                    self.data[str(self.levelIDX)]["buttons"].append(truncPos)
-
-                self.update_level(next=False)
-
-            if self.editor.clicksR == [True,False]: #RMB
-                for item in self.spikes:
-                    orn = self.spikeDir[self.spikes.index(item)]
-                    if pygame.Rect.colliderect(toRect(newMouseRect),spike_convert(item,orn)):
-                        self.data[str(self.levelIDX)]["spikes"].remove(item)
+                    if self.editor.selected == "spike":
+                        newSpike = [truncPos[0],truncPos[1]+50]
+                        self.data[str(self.levelIDX)]["spikes"].append(newSpike)
                         self.orient_spikes()
-                        
-                for item in self.fanBases:
-                    if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
-                        self.data[str(self.levelIDX)]["fan bases"].remove(item)
-                        self.fanBases.remove(item)
 
-                for item in self.fanColumns:
-                    if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
-                        self.data[str(self.levelIDX)]["fan columns"].remove(item)
-                        self.fanColumns.remove(item)
+                    elif self.editor.selected == "end":
+                        self.data[str(self.levelIDX)]["end"] = truncPos
 
-                for item in self.stars:
-                    if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
-                        self.data[str(self.levelIDX)]["stars"].remove(item)
-                        self.stars.remove(item)
+                    elif self.editor.selected == "fan base":
+                        self.data[str(self.levelIDX)]["fan bases"].append(truncPos)
 
-                for item in self.mobs:
-                    if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
-                        self.data[str(self.levelIDX)]["mobs"].remove(item)
-                        self.mobs.remove(item)
+                    elif self.editor.selected == "fan column":
+                        self.data[str(self.levelIDX)]["fan columns"].append(truncPos)
 
-                for item in self.checkpoints:
-                    if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
-                        self.data[str(self.levelIDX)]["checkpoints"].remove(item)
-                        self.checkpoints.remove(item)
+                    elif self.editor.selected == "star":
+                        self.data[str(self.levelIDX)]["stars"].append(truncPos)
 
-                for item in self.bosses:
-                    if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
-                        self.data[str(self.levelIDX)]["bosses"].remove(item)
-                        self.bosses.remove(item)
+                    elif self.editor.selected == "enemy":
+                        self.data[str(self.levelIDX)]["mobs"].append(truncPos)
 
-                for item in self.buttons:
-                    if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
-                        self.data[str(self.levelIDX)]["buttons"].remove(item)
-                        self.buttons.remove(item)
+                    elif self.editor.selected == "checkpoint":
+                        self.data[str(self.levelIDX)]["checkpoints"].append(truncPos)
+
+                    elif self.editor.selected == "boss":
+                        self.data[str(self.levelIDX)]["bosses"].append(truncPos)
+
+                    elif self.editor.selected == "button":
+                        self.data[str(self.levelIDX)]["buttons"].append(truncPos)
+
+                    self.update_level(next=False)
+
+                if self.editor.clicksR == [True,False]: #RMB
+                    for item in self.spikes:
+                        orn = self.spikeDir[self.spikes.index(item)]
+                        if pygame.Rect.colliderect(toRect(newMouseRect),spike_convert(item,orn)):
+                            self.data[str(self.levelIDX)]["spikes"].remove(item)
+                            self.orient_spikes()
+
+                    for item in self.fanBases:
+                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
+                            self.data[str(self.levelIDX)]["fan bases"].remove(item)
+                            self.fanBases.remove(item)
+
+                    for item in self.fanColumns:
+                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
+                            self.data[str(self.levelIDX)]["fan columns"].remove(item)
+                            self.fanColumns.remove(item)
+
+                    for item in self.stars:
+                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
+                            self.data[str(self.levelIDX)]["stars"].remove(item)
+                            self.stars.remove(item)
+
+                    for item in self.mobs:
+                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
+                            self.data[str(self.levelIDX)]["mobs"].remove(item)
+                            self.mobs.remove(item)
+
+                    for item in self.checkpoints:
+                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
+                            self.data[str(self.levelIDX)]["checkpoints"].remove(item)
+                            self.checkpoints.remove(item)
+
+                    for item in self.bosses:
+                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
+                            self.data[str(self.levelIDX)]["bosses"].remove(item)
+                            self.bosses.remove(item)
+
+                    for item in self.buttons:
+                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
+                            self.data[str(self.levelIDX)]["buttons"].remove(item)
+                            self.buttons.remove(item)
 
                 self.update_level(next=False)          
 
@@ -919,18 +1138,27 @@ class Editor:
     def __init__(self):
         self.clicks = [False,False]
         self.clicksR = [False,False]
+        self.scroll = 0
+        self.relativeScroll = 0
         self.pendingRect = [0,0,0,0]
         self.endRect = None
         self.mouseRect = [0,0,3,3]
         self.clicks = [False,False] # current and last state of LMB
         self.selected = "platform"
+        self.linkMode = False
 
+        self.linkRect = u.Pressable(SCRW-100,SCRH-100,70,70)
+        self.originalItemRects = []
         self.itemRects = []
-        self.ref = ["platform","spike","end","fan base","fan column","star","enemy","checkpoint","boss","button"]
+        self.ref = ["platform","spike","end","fan base",
+                    "fan column","star","enemy","checkpoint",
+                    "boss","button","disappearing platform",
+                    "appearing platform"]
 
-        for i in range(15):
+        for i in range(50):
             y = i*60
-            self.itemRects.append((10,y+5,50,50))
+            self.originalItemRects.append((10,y+5,50,50))
+            self.itemRects.append((10, y + 5, 50, 50))
 
 class Mob_Hitbox():
     def __init__(self):
@@ -1056,7 +1284,7 @@ class Player:
         self.ypos += self.yvel
 
 class Enemy:
-    def __init__(self,xpos,ypos,maxXvel=5,maxYvel=50,gravity=0.981,img=None):
+    def __init__(self,xpos,ypos,maxXvel=5,maxYvel=30,gravity=0.981,img=None):
         self.xpos = xpos
         self.ypos = ypos
         self.center = [self.xpos,self.ypos]
@@ -1129,6 +1357,9 @@ class Enemy:
             self.xvel = self.maxXvel
         elif self.xvel < -self.maxXvel:
             self.xvel = -self.maxXvel
+
+        if self.yvel > self.maxYvel:
+            self.yvel = self.maxYvel
 
         if self.wallData[1] and self.xvel < 0:
             self.xvel = 0
@@ -1460,14 +1691,14 @@ class Here(Animation):
 
 titleBox = u.old_textbox("PLATFORM ENGINE",fontTitle,(SCRW//2,150),backgroundCol=None,tags=["menu"])
 startBox = u.old_textbox("PLAY",font28,(SCRW//2,400),tags=["menu"])
-menuBox = u.old_textbox("MENU",font18,(SCRW-35,20),tags=["ingame","editor","levels","settings"])
+menuBox = u.old_textbox("MENU",font18,(SCRW-35,20),tags=["ingame","editor","levels","settings","achievements"])
 editorBox = u.old_textbox("EDITOR",font18,(SCRW//2,500),tags=["menu"])
 levelsBox = u.old_textbox("LEVELS",font18,(SCRW//2,300),tags=["menu"])
 selectedBox = u.old_textbox("",font18,(SCRW//2,60),tags=["editor"])
 coordBox = u.old_textbox("",font18,(SCRW//3,20),tags=["editor"])
 levelIDXBox = u.old_textbox("",font18,(SCRW//2,20),tags=["ingame","editor"])
 settingsBox = u.old_textbox("SETTINGS",font18,(SCRW//1.3,500),tags=["menu"])
-showFPSBox = u.old_textbox("Show FPS",font18,(SCRW//2,150),tags=["settings"])
+showFPSBox = u.old_textbox("Show FPS",font18,(SCRW//2,50),tags=["settings"])
 FPSBox = u.old_textbox("FPS: -",font18,(SCRW-50,SCRH-50),tags=["ingame","editor","settings"])
 statsTitleBox = u.old_textbox("Statistics",font28,(SCRW//2,300),tags=["settings"])
 collectedStarsBox = u.old_textbox("Stars collectd: -",font18,(SCRW//2,400),tags=["settings"])
@@ -1475,14 +1706,27 @@ enemiesDefeatedBox = u.old_textbox("Enemies defeated: -",font18,(SCRW//2,450),ta
 deathCountBox = u.old_textbox("Number of deaths: -",font18,(SCRW//2,500),tags=["settings"])
 uptimeBox = u.old_textbox("Time Played: -",font18,(SCRW//2,550),tags=["settings"])
 resetStatsBox = u.old_textbox("RESET STATISTICS",font18,(SCRW//5,550),tags=["settings"],backgroundCol=colour.red,textCol=colour.black)
-annoyingBossesBox = u.old_textbox("Annoyinger bosses",font18,(SCRW//2,200),tags=["settings"])
+annoyingBossesBox = u.old_textbox("Annoyinger bosses",font18,(SCRW//2,150),tags=["settings"])
+soundBox = u.old_textbox("Sound",font18,(SCRW//2,100),tags=["settings"])
+achievementBox = u.old_textbox("Achievements",font18,(SCRW-(SCRW//1.33),500),tags=["menu"])
+achievementTitleBox = u.old_textbox("ACHIEVEMENTS",fontTitle,(SCRW//2,100),tags=["achievements"],backgroundCol=None)
+
+linkBox = u.old_textbox("Link mode",font18,(SCRW//2,100),tags=["editor"],backgroundCol=colour.red)
 
 boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,levelsBox,settingsBox,
          showFPSBox,statsTitleBox,collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox,
-         resetStatsBox,annoyingBossesBox]
+         resetStatsBox,annoyingBossesBox,soundBox,achievementBox,achievementTitleBox]
 # hard coded textboxes
 
 ##################################################
+
+def bind(minim,val,maxim):
+    if val > maxim:
+        return maxim
+    if val < minim:
+        return minim
+    else:
+        return val
 
 def sendSpikeToCam(item,orn=0,col=colour.red):
     #print(f"orn {orn} for {item}")
@@ -1546,7 +1790,7 @@ def sendToCam(item,name=None,col=None):
             pygame.draw.rect(SCREEN,col,newRect)
         else:
             if col == None: col = colour.white
-           # print(f"success for {newRect}")
+            #print(f"success for {newRect}")
             pygame.draw.rect(SCREEN,col,newRect,width=2)
 
 def blitToCam(item,pos):
@@ -1570,7 +1814,7 @@ def toRect(alist=[0,0,0,0]):
             rect = pygame.Rect(0,0,0,0)
     return  rect
 
-def repos_boxes():
+def reposition_boxes():
     titleBox.pos = (SCRW//2,200)
     startBox.pos = (SCRW//2,400)
     menuBox.pos = (SCRW-35,20)
@@ -1580,7 +1824,7 @@ def repos_boxes():
     coordBox.pos = (SCRW//3,20)
     levelIDXBox.pos = (SCRW//2,20)
     settingsBox.pos = (SCRW//1.3,500)
-    showFPSBox.pos = (SCRW//2,150)
+    showFPSBox.pos = (SCRW//2,50)
     FPSBox.pos = (SCRW-50,SCRH-50)
     statsTitleBox.pos = (SCRW//2,300)
     collectedStarsBox.pos = (SCRW//2,400)
@@ -1588,7 +1832,11 @@ def repos_boxes():
     deathCountBox.pos = (SCRW//2,500)
     uptimeBox.pos = (SCRW//2,550)
     resetStatsBox.pos = (SCRW//5,550)
-    annoyingBossesBox.pos = (SCRW//2,200)
+    annoyingBossesBox.pos = (SCRW//2,150)
+    soundBox.pos = (SCRW//2,100)
+    achievementBox.pos = (SCRW-(SCRW//1.33),500)
+    linkBox.pos = (SCRW//2,100)
+    achievementTitleBox.pos = (SCRW//2,150)
 
 def tick_boxes():
     for item in boxes:
@@ -1645,6 +1893,12 @@ def tick_boxes():
     if annoyingBossesBox.isPressed():
         game.settings.annoyingBosses = not game.settings.annoyingBosses
 
+    if game.scene == "editor" and game.editor.linkMode:
+        linkBox.display()
+
+    if achievementBox.isPressed():
+        game.scene = "achievements"
+
 def spike_convert(item,orn=0):
     if orn == 0:
         return [item[0] + 5, item[1] - 30, 40, 30]
@@ -1667,6 +1921,7 @@ def go_quit():
         info["deaths"] = game.stats.deaths
         file.write(json.dumps(info))
 
+    pygame.mixer.quit()
     pygame.quit()
     sys.exit()
 
@@ -1675,6 +1930,8 @@ def now():
 
 def handle_events(move):
     global SCRW,SCRH
+    game.editor.relativeScroll = 0
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             go_quit()
@@ -1684,11 +1941,16 @@ def handle_events(move):
             SCRW,SCRH = pygame.display.get_window_size()
             game.settings.SCRWEX = SCRW%100
             game.settings.SCRHEX = SCRH%100
-            repos_boxes()
+            reposition_boxes()
             game.scale = min(SCRW/800,SCRH/600,)
             game.img.resize_cloud(game.scale)
 
-            
+        elif event.type == pygame.MOUSEWHEEL:
+            #print(f"{event.y}")
+            game.editor.relativeScroll = event.y
+            if not game.editor.linkMode:
+                game.editor.scroll += (event.y*20)
+
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 go_quit()
@@ -1718,7 +1980,7 @@ def handle_events(move):
 ##################################################
 
 img = Images()
-player = Player(gravity=0.981,img=img.body,maxXvel = 10, maxYvel = 30) # hehe
+player = Player(gravity=0.981,img=img.body,maxXvel = 10, maxYvel = 30)
 game = Game()
 game.player = player
 levelSlots = Level_slots(len(game.data))
@@ -1736,6 +1998,9 @@ while True:
     clock.tick(TICKRATE)
 
     handle_events(move=game.enableMovement)
+
+    if game.sound.enabled:
+        game.sound.run_music()
 
     if game.scene == "ingame":
         game.draw_gradient()
@@ -1777,10 +2042,11 @@ while True:
         coordBox.update_message(( str(acx) + "," + str(acy) ))
         
         game.draw_grid()
-        game.run_editor() # temp
+        #game.run_editor() # temp
+        game.tick_button_platforms()
         game.draw_bg()
         game.check_selected()
-        #game.run_editor()
+        game.run_editor()
         game.player.free_cam()
         game.draw_menu()
 
@@ -1812,7 +2078,7 @@ while True:
         uptimeBox.update_message(uptime)
 
         if game.settings.showFPS:
-            SCREEN.blit(img.tick,((SCRW//2)+50,135))
+            SCREEN.blit(img.tick,((SCRW//2)+50,35))
 
         if game.settings.annoyingBosses:
-            SCREEN.blit(img.tick,((SCRW//2)+100,185))
+            SCREEN.blit(img.tick,((SCRW//2)+100,135))
