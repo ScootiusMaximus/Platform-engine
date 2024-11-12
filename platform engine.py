@@ -27,8 +27,8 @@ fontTitle.set_bold(True)
 
 class Images:
     def __init__(self):
-        self.fanBase = pygame.image.load("fan base.png")
-        self.fanColumn = pygame.image.load("fan column.png")
+        #self.fanBase = pygame.image.load("fan base.png")
+        #self.fanColumn = pygame.image.load("fan column.png")
         self.body = pygame.image.load("body.png")
         self.enemyBody = pygame.image.load("enemy_body.png")
         self.star = pygame.image.load("star.png")
@@ -41,6 +41,16 @@ class Images:
         self.buttonUnpressed = pygame.image.load("button_unpressed.png")
         self.buttonPressed = pygame.image.load("button_pressed.png")
         self.link = pygame.image.load("link.png")
+        self.fanColumn = [
+            pygame.image.load("fan_column1.png"),
+            pygame.image.load("fan_column2.png"),
+            pygame.image.load("fan_column3.png")
+        ]
+        self.fanBase = [
+            pygame.image.load("fan_base1.png"),
+            pygame.image.load("fan_base2.png"),
+            pygame.image.load("fan_base3.png")
+        ]
         self.cloud = {"1":[pygame.image.load("cloud1.png"),
                           pygame.image.load("cloud2.png"),
                           pygame.image.load("cloud3.png")]}
@@ -206,6 +216,9 @@ class Game:
         self.lastCloud = 0
         self.cloudInterval = 10000
         self.clouds = []
+        self.lastFanChange = 0
+        self.fanInterval = 200
+        self.fanState = 0
 
         self.data = {} # the whole json file
         self.levelIDX = 1
@@ -229,7 +242,7 @@ class Game:
         self.appearingPlatforms = []
         self.appearingPlatformLinks = []
 
-        self.events = []
+        self.events = [False,False]
         # events should be:
         # no enemies left, boss defeated
 
@@ -826,6 +839,12 @@ class Game:
         self.orient_spikes()
 
     def draw_bg(self):
+        if now() - self.lastFanChange > self.fanInterval:
+            self.fanState += 1
+            if self.fanState >= len(self.img.fanColumn):
+                self.fanState = 0
+            self.lastFanChange = now()
+
         # why tf am I getting everything from the json file I have them stored in lists whyyyy
         blitToCam(self.img.finish, self.data[str(self.levelIDX)]["end"])  # VERY INEFFICIENT FIX ME
         for item in self.data[str(self.levelIDX)]["platforms"]:
@@ -837,14 +856,14 @@ class Game:
         #    orn = self.spikeDir[self.spikes.index(item)]
         #    sendToCam(spike_convert(item,orn),"hitbox")
         for item in self.data[str(self.levelIDX)]["fan bases"]:
-            sendToCam(item,"fan base")
+            blitToCam(self.img.fanBase[self.fanState],item)
         for item in self.data[str(self.levelIDX)]["fan columns"]:
-            sendToCam(item,"fan column")
+            blitToCam(self.img.fanColumn[self.fanState],item)
         for item in self.data[str(self.levelIDX)]["stars"]:
             if self.scene == "editor":
-                sendToCam(item,"star")
+                blitToCam(self.img.star,item)
             if item not in self.stats.stars[str(self.levelIDX)]:
-                sendToCam(item,"star")
+                blitToCam(self.img.star,item)
         for item in self.data[str(self.levelIDX)]["checkpoints"]:
             if item == self.spawnPoint:
                 blitToCam(self.img.checkpointOn,item)
@@ -1764,44 +1783,35 @@ def sendSpikeToCam(item,orn=0,col=colour.red):
     return None
 
 def sendToCam(item,name=None,col=None):
-    if name == "fan base":
-        SCREEN.blit(img.fanBase,(item[0]-player.xpos+(SCRW//2),item[1]-player.ypos+(SCRH//2)))
-        return None
-
-    elif name == "fan column":
-        SCREEN.blit(img.fanColumn,(item[0]-player.xpos+(SCRW//2),item[1]-player.ypos+(SCRH//2)))
-        return None
-
-    elif name == "star":
-        SCREEN.blit(img.star,(item[0]-player.xpos+(SCRW//2),item[1]-player.ypos+(SCRH//2)))
-        return None
-
-    elif isinstance(item,list):
-        newRect = [item[0]-player.xpos+(SCRW//2),
-                   item[1]-player.ypos+(SCRH//2),
-                   item[2],item[3]]
+    newRect = [item[0]-player.xpos+(SCRW//2),
+               item[1]-player.ypos+(SCRH//2),
+               item[2],item[3]]
 ##        if newRect[0] + item[2] < 0 or newRect[0] > SCRW:
 ##            pass #off the screen
 ##        if newRect[1] + item[3] < 0 or newRect[3] > SCRW:
 ##            pass #off the screen
-        
-        if name != "hitbox":
-            if col == None: col = colour.darkgrey
-            pygame.draw.rect(SCREEN,col,newRect)
-        else:
-            if col == None: col = colour.white
-            #print(f"success for {newRect}")
-            pygame.draw.rect(SCREEN,col,newRect,width=2)
+
+    if name != "hitbox":
+        if col == None: col = colour.darkgrey
+        pygame.draw.rect(SCREEN,col,newRect)
+    else:
+        if col == None: col = colour.white
+        #print(f"success for {newRect}")
+        pygame.draw.rect(SCREEN,col,newRect,width=2)
 
 def blitToCam(item,pos):
     SCREEN.blit(item,((SCRW//2)-player.xpos+pos[0],(SCRH//2)-player.ypos+pos[1]))
 
 def get_screen_pos(thing):
     '''Actual position -> Screen position'''
+    if len(thing) == 2:
+        thing = [thing[0],thing[1],0,0]
     return [thing[0]-player.xpos+(SCRW//2),thing[1]-player.ypos+(SCRH//2),thing[2],thing[3]]
 
 def get_actual_pos(thing):
     '''Screen position -> Actual position'''
+    if len(thing) == 2:
+        thing = [thing[0],thing[1],0,0]
     return [thing[0]+player.xpos-(SCRW//2),thing[1]+player.ypos-(SCRH//2),thing[2],thing[3]]
 
 def toRect(alist=[0,0,0,0]):
