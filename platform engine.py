@@ -105,7 +105,7 @@ class Soundboard:
                          pygame.mixer.Channel(1), # music
                          pygame.mixer.Channel(2)] # jump
 
-        self.enabled = True
+        self.enabled = False
 
     def start_fall(self):
         if not self.channels[0].get_busy():
@@ -1909,6 +1909,9 @@ def tick_boxes():
     if achievementBox.isPressed():
         game.scene = "achievements"
 
+    if soundBox.isPressed():
+        game.sound.enabled = not game.sound.enabled
+
 def spike_convert(item,orn=0):
     if orn == 0:
         return [item[0] + 5, item[1] - 30, 40, 30]
@@ -2092,3 +2095,6 @@ while True:
 
         if game.settings.annoyingBosses:
             SCREEN.blit(img.tick,((SCRW//2)+100,135))
+
+        if game.sound.enabled:
+            SCREEN.blit(img.tick,((SCRW//2)+30,85))
