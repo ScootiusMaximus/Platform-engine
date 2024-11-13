@@ -935,9 +935,9 @@ class Game:
         # spike icon
         SCREEN.blit(self.img.finish,(3,125+scr))
         # finish
-        SCREEN.blit(self.img.fanBase,(10,180+scr))
+        SCREEN.blit(self.img.fanBase[1],(10,180+scr))
         # fan base image
-        SCREEN.blit(self.img.fanColumn,(10,245+scr))
+        SCREEN.blit(self.img.fanColumn[0],(10,245+scr))
         # fan column
         SCREEN.blit(self.img.star,(10,305+scr))
         # fan column
@@ -1003,6 +1003,7 @@ class Game:
         #        sendToCam(item,col=colour.white,name="hitbox")
         ###
         if self.editor.linkMode:
+            self.run_button_boxes()
             for which in [self.disappearingPlatforms,self.appearingPlatforms]:
                 for item in which:
                     sendToCam(item,col=colour.white,name="hitbox")
@@ -1150,7 +1151,23 @@ class Game:
                             self.data[str(self.levelIDX)]["buttons"].remove(item)
                             self.buttons.remove(item)
 
-                self.update_level(next=False)          
+                    self.update_level(next=False)
+
+    def run_button_boxes(self):
+        if len(self.buttons) != 0 and len(self.editor.buttonIndexBoxes) == 0:
+            # need to make the boxes
+            for i in range(len(self.buttons)):
+                pos = (self.buttons[i][0],self.buttons[i][1])
+                newBox = u.old_textbox(f" {i} ",font18,pos)
+                #print(f"tried {pos} {type(pos)}")
+                #newBox.pos = pos
+                self.editor.buttonIndexBoxes.append(newBox)
+
+        for box in self.editor.buttonIndexBoxes:
+            rawPos = get_screen_pos(toRect(box.pos))
+            pos = (rawPos[0]+25,rawPos[1]+10)
+            boxCopy = u.old_textbox(box.message,font18,pos)
+            boxCopy.display()
 
 class Editor:
     '''a namespace to hold editor data'''
@@ -1165,6 +1182,8 @@ class Editor:
         self.clicks = [False,False] # current and last state of LMB
         self.selected = "platform"
         self.linkMode = False
+        self.buttonIndexBoxes = [] # a QOL feature to show the index of
+        # a button when in link mode in editor
 
         self.linkRect = u.Pressable(SCRW-100,SCRH-100,70,70)
         self.originalItemRects = []
@@ -1193,7 +1212,7 @@ class Mob_Hitbox():
         self.actRight = pygame.Rect([0,0,0,0])
 
 class Player:
-    def __init__(self,gravity,maxYvel=50,maxXvel=10,img=None):
+    def __init__(self,gravity,maxXvel=10,maxYvel=30,img=None):
         self.xpos = 0
         self.ypos = 0
         self.xvel = 0
@@ -1848,6 +1867,8 @@ def reposition_boxes():
     linkBox.pos = (SCRW//2,100)
     achievementTitleBox.pos = (SCRW//2,150)
 
+    game.editor.linkRect.move_to(SCRW-100,SCRH-100)
+
 def tick_boxes():
     for item in boxes:
         if game.scene in item.tags:
@@ -1911,6 +1932,8 @@ def tick_boxes():
 
     if soundBox.isPressed():
         game.sound.enabled = not game.sound.enabled
+        if not game.sound.enabled:
+            pygame.mixer.stop()
 
 def spike_convert(item,orn=0):
     if orn == 0:
@@ -1993,7 +2016,7 @@ def handle_events(move):
 ##################################################
 
 img = Images()
-player = Player(gravity=0.981,img=img.body,maxXvel = 10, maxYvel = 30)
+player = Player(gravity=0.981,img=img.body)
 game = Game()
 game.player = player
 levelSlots = Level_slots(len(game.data))
@@ -2071,7 +2094,6 @@ while True:
             levelSlots.pressed = False
             game.scene = "ingame"
             game.update_level(next=False)
-
 
     elif game.scene == "settings":
         #collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox
