@@ -192,6 +192,21 @@ class Stats:
         self.playTime = 0
         self.deaths = 0
 
+class MiscData:
+    def __init__(self):
+        self.lastCloud = 0
+        self.cloudInterval = 10000
+
+        self.lastFanChange = 0
+        self.fanInterval = 200
+        self.fanState = 0
+
+        self.lastFPSUpdate = 0
+        self.FPSUpdateInterval = 200
+
+        self.platformCol = []
+        self.bgCol = []
+
 class Game:
     def __init__(self):
         self.gravity = 0.981
@@ -199,12 +214,15 @@ class Game:
         self.restart = False # if the player presses the restart key
         self.scale = 1
 
-        self.player = None
+        self.player = Player(gravity=0.981,img=img.body)
         self.editor = Editor()
         self.img = Images()
         self.sound = Soundboard()
         self.settings = Settings()
         self.stats = Stats()
+        self.misc = MiscData()
+
+        self.clouds = []
 
         self.UP = [pygame.K_UP,pygame.K_w,pygame.K_SPACE]
         self.LEFT = [pygame.K_a,pygame.K_LEFT]
@@ -213,13 +231,6 @@ class Game:
         self.RESTART = [pygame.K_r]
 
         self.enableMovement = True
-
-        self.lastCloud = 0
-        self.cloudInterval = 10000
-        self.clouds = []
-        self.lastFanChange = 0
-        self.fanInterval = 200
-        self.fanState = 0
 
         self.data = {} # the whole json file
         self.levelIDX = 1
@@ -309,8 +320,8 @@ class Game:
                 self.stats.stars[str(i+1)] = []
 
     def generate_cloud(self):
-        if now() - self.lastCloud > self.cloudInterval:
-            self.lastCloud = now()
+        if now() - self.misc.lastCloud > self.misc.cloudInterval:
+            self.misc.lastCloud = now()
             typ = random.randint(0,2)
             self.clouds.append(Cloud(typ,self.img.cloud[str(self.scale)][typ]))
 
@@ -511,7 +522,7 @@ class Game:
     def tick(self):
         if self.restart:
             self.trigger_death(die=False)
-            
+
 ##        playerBox = get_actual_pos([self.player.xpos,self.player.ypos,50,50])
 ##        playerRect = pygame.Rect(self.player.xpos-25,self.player.ypos-25,50,50)
         self.player.wallData = [False,False,False,False,False]
@@ -840,11 +851,11 @@ class Game:
         self.orient_spikes()
 
     def draw_bg(self):
-        if now() - self.lastFanChange > self.fanInterval:
-            self.fanState += 1
-            if self.fanState >= len(self.img.fanColumn):
-                self.fanState = 0
-            self.lastFanChange = now()
+        if now() - self.misc.lastFanChange > self.misc.fanInterval:
+            self.misc.fanState += 1
+            if self.misc.fanState >= len(self.img.fanColumn):
+                self.misc.fanState = 0
+            self.misc.lastFanChange = now()
 
         # why tf am I getting everything from the json file I have them stored in lists whyyyy
         blitToCam(self.img.finish, self.data[str(self.levelIDX)]["end"])  # VERY INEFFICIENT FIX ME
@@ -857,9 +868,9 @@ class Game:
         #    orn = self.spikeDir[self.spikes.index(item)]
         #    sendToCam(spike_convert(item,orn),"hitbox")
         for item in self.data[str(self.levelIDX)]["fan bases"]:
-            blitToCam(self.img.fanBase[self.fanState],item)
+            blitToCam(self.img.fanBase[self.misc.fanState],item)
         for item in self.data[str(self.levelIDX)]["fan columns"]:
-            blitToCam(self.img.fanColumn[self.fanState],item)
+            blitToCam(self.img.fanColumn[self.misc.fanState],item)
         for item in self.data[str(self.levelIDX)]["stars"]:
             if self.scene == "editor":
                 blitToCam(self.img.star,item)
@@ -1357,21 +1368,21 @@ class Enemy:
 
     def draw(self):
         blitToCam(self.img,(self.xpos-20,self.ypos-10))
-        pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-player.xpos+self.xpos,(SCRH//2)+5-player.ypos+self.ypos),10)
+        pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-game.player.xpos+self.xpos,(SCRH//2)+5-game.player.ypos+self.ypos),10)
         if self.xvel == 0:        
-                pygame.draw.circle(SCREEN,colour.black,(SCRW//2-player.xpos+self.xpos,(SCRH//2)+5-player.ypos+self.ypos),7)
-                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)+2-player.xpos+self.xpos,(SCRH//2)+6-player.ypos+self.ypos),2)
-                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-player.xpos+self.xpos,(SCRH//2)+7-player.ypos+self.ypos),1)
+                pygame.draw.circle(SCREEN,colour.black,(SCRW//2-game.player.xpos+self.xpos,(SCRH//2)+5-game.player.ypos+self.ypos),7)
+                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)+2-game.player.xpos+self.xpos,(SCRH//2)+6-game.player.ypos+self.ypos),2)
+                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-game.player.xpos+self.xpos,(SCRH//2)+7-game.player.ypos+self.ypos),1)
 
         else:
             if self.xvel < 0:
-                pygame.draw.circle(SCREEN,colour.black,((SCRW//2)-3-player.xpos+self.xpos,(SCRH//2)+5-player.ypos+self.ypos),7)
-                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-1-player.xpos+self.xpos,(SCRH//2)+6-player.ypos+self.ypos),2)
-                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-3-player.xpos+self.xpos,(SCRH//2)+7-player.ypos+self.ypos),1)
+                pygame.draw.circle(SCREEN,colour.black,((SCRW//2)-3-game.player.xpos+self.xpos,(SCRH//2)+5-game.player.ypos+self.ypos),7)
+                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-1-game.player.xpos+self.xpos,(SCRH//2)+6-game.player.ypos+self.ypos),2)
+                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-3-game.player.xpos+self.xpos,(SCRH//2)+7-game.player.ypos+self.ypos),1)
             elif self.xvel > 0:
-                pygame.draw.circle(SCREEN,colour.black,((SCRW//2)+3-player.xpos+self.xpos,(SCRH//2)+5-player.ypos+self.ypos),7)
-                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)+5-player.xpos+self.xpos,(SCRH//2)+6-player.ypos+self.ypos),2)
-                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)+3-player.xpos+self.xpos,(SCRH//2)+7-player.ypos+self.ypos),1)
+                pygame.draw.circle(SCREEN,colour.black,((SCRW//2)+3-game.player.xpos+self.xpos,(SCRH//2)+5-game.player.ypos+self.ypos),7)
+                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)+5-game.player.xpos+self.xpos,(SCRH//2)+6-game.player.ypos+self.ypos),2)
+                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)+3-game.player.xpos+self.xpos,(SCRH//2)+7-game.player.ypos+self.ypos),1)
 
     def update_hitboxes(self):
         self.hitbox.whole = toRect([self.xpos-20,self.ypos-19,40,40])
@@ -1771,8 +1782,8 @@ def bind(minim,val,maxim):
 def sendSpikeToCam(item,orn=0,col=colour.red):
     #print(f"orn {orn} for {item}")
     item = spike_convert(item)
-    x = item[0] + (SCRW // 2) - player.xpos
-    y = item[1] + (SCRH // 2) - player.ypos
+    x = item[0] + (SCRW // 2) - game.player.xpos
+    y = item[1] + (SCRH // 2) - game.player.ypos
 
     if orn == 0: # attached to floor
         for i in range(5):
@@ -1804,13 +1815,12 @@ def sendSpikeToCam(item,orn=0,col=colour.red):
     return None
 
 def sendToCam(item,name=None,col=None):
-    newRect = [item[0]-player.xpos+(SCRW//2),
-               item[1]-player.ypos+(SCRH//2),
+    newRect = [item[0]-game.player.xpos+(SCRW//2),
+               item[1]-game.player.ypos+(SCRH//2),
                item[2],item[3]]
-##        if newRect[0] + item[2] < 0 or newRect[0] > SCRW:
-##            pass #off the screen
-##        if newRect[1] + item[3] < 0 or newRect[3] > SCRW:
-##            pass #off the screen
+
+    if newRect[0] + item[2] < 0 != newRect[0] > SCRW or newRect[1] + item[3] < 0 != newRect[3] > SCRW:
+        return None  #off the screen
 
     if name != "hitbox":
         if col == None: col = colour.darkgrey
@@ -1821,19 +1831,24 @@ def sendToCam(item,name=None,col=None):
         pygame.draw.rect(SCREEN,col,newRect,width=2)
 
 def blitToCam(item,pos):
-    SCREEN.blit(item,((SCRW//2)-player.xpos+pos[0],(SCRH//2)-player.ypos+pos[1]))
+    x = (SCRW//2)-game.player.xpos+pos[0]
+    y = (SCRH//2)-game.player.ypos+pos[1]
+    w = item.get_height()
+    h = item.get_width()
+    if (x+h > 0 != x < SCRW) and (y+w > 0 != y < SCRW):
+        SCREEN.blit(item,(x,y))
 
 def get_screen_pos(thing):
     '''Actual position -> Screen position'''
     if len(thing) == 2:
         thing = [thing[0],thing[1],0,0]
-    return [thing[0]-player.xpos+(SCRW//2),thing[1]-player.ypos+(SCRH//2),thing[2],thing[3]]
+    return [thing[0]-game.player.xpos+(SCRW//2),thing[1]-game.player.ypos+(SCRH//2),thing[2],thing[3]]
 
 def get_actual_pos(thing):
     '''Screen position -> Actual position'''
     if len(thing) == 2:
         thing = [thing[0],thing[1],0,0]
-    return [thing[0]+player.xpos-(SCRW//2),thing[1]+player.ypos-(SCRH//2),thing[2],thing[3]]
+    return [thing[0]+game.player.xpos-(SCRW//2),thing[1]+game.player.ypos-(SCRH//2),thing[2],thing[3]]
 
 def toRect(alist=[0,0,0,0]):
     if len(alist) == 4:
@@ -1880,8 +1895,10 @@ def tick_boxes():
             item.isShowing = False
 
     if game.settings.showFPS:
-        fps = str(clock.get_fps()).split(".")
-        FPSBox.update_message(f"FPS:{fps[0]}.{fps[1][:3]}")
+        if now() - game.misc.lastFPSUpdate > game.misc.FPSUpdateInterval:
+            game.misc.lastFPSUpdate = now()
+            fps = str(clock.get_fps()).split(".")
+            FPSBox.update_message(f"FPS:{fps[0]}.{fps[1][:3]}")
         FPSBox.isShowing = True
         FPSBox.display()
     else:
@@ -1904,7 +1921,6 @@ def tick_boxes():
         game.scene = "editor"
         game.enableMovement = True
         game.orient_spikes()
-
 
     if levelsBox.isPressed():
         game.scene = "levels"
@@ -1997,30 +2013,28 @@ def handle_events(move):
                 
             if move:
                 if event.key in game.UP:
-                    player.move[0] = True
+                    game.player.move[0] = True
                 elif event.key in game.LEFT:
-                    player.move[1] = True
+                    game.player.move[1] = True
                 elif event.key in game.RIGHT:
-                    player.move[2] = True
+                    game.player.move[2] = True
                 elif event.key in game.DOWN:
-                    player.move[3] = True
+                    game.player.move[3] = True
                 
         elif event.type == pygame.KEYUP:
             if event.key in game.UP:
-                player.move[0] = False
+                game.player.move[0] = False
             elif event.key in game.LEFT:
-                player.move[1] = False
+                game.player.move[1] = False
             elif event.key in game.RIGHT:
-                player.move[2] = False
+                game.player.move[2] = False
             elif event.key in game.DOWN:
-                player.move[3] = False
+                game.player.move[3] = False
 
 ##################################################
 
 img = Images()
-player = Player(gravity=0.981,img=img.body)
 game = Game()
-game.player = player
 levelSlots = Level_slots(len(game.data))
 
 ##testEnemy = Enemy(200,0,img=img.enemyBody)
