@@ -19,6 +19,7 @@ SCREEN = pygame.display.set_mode((SCRW,SCRH),pygame.RESIZABLE)
 u.init(SCREEN)
 rgb = u.rainbow()
 clock = pygame.time.Clock()
+pygame.display.set_caption("Platform game!")
 font18 = pygame.font.SysFont(FONT,18)
 font28 = pygame.font.SysFont(FONT,28)
 font50 = pygame.font.SysFont(FONT,50)
@@ -1156,9 +1157,10 @@ class Game:
     def run_button_boxes(self):
         if len(self.buttons) != 0 and len(self.editor.buttonIndexBoxes) == 0:
             # need to make the boxes
+            self.editor.buttonIndexBoxes = []
             for i in range(len(self.buttons)):
                 pos = (self.buttons[i][0],self.buttons[i][1])
-                newBox = u.old_textbox(f" {i} ",font18,pos)
+                newBox = u.old_textbox(f" {i+1} ",font18,pos)
                 #print(f"tried {pos} {type(pos)}")
                 #newBox.pos = pos
                 self.editor.buttonIndexBoxes.append(newBox)
@@ -2107,7 +2109,7 @@ while True:
         hours = (ms // (1000*60*60)) % 60
         uptime = f"Time played: {hours}h {mins}m {secs}s"
             
-        collectedStarsBox.update_message(f"Stars colelcted: {starCount}")
+        collectedStarsBox.update_message(f"Stars collected: {starCount}")
         enemiesDefeatedBox.update_message(f"Enemies defeated: {game.stats.enemiesKilled}")
         deathCountBox.update_message(f"Number of deaths: {game.stats.deaths}")
         uptimeBox.update_message(uptime)
