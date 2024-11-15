@@ -42,6 +42,7 @@ class Images:
         self.buttonUnpressed = pygame.image.load("button_unpressed.png")
         self.buttonPressed = pygame.image.load("button_pressed.png")
         self.link = pygame.image.load("link.png")
+        self.rock = pygame.image.load("rock.png")
         self.fanColumn = [
             pygame.image.load("fan_column1.png"),
             pygame.image.load("fan_column2.png"),
@@ -207,6 +208,19 @@ class MiscData:
         self.platformCol = []
         self.bgCol = []
 
+        self.highResTextures = True
+
+class Achievements:
+    def __init__(self):
+        self.playTime = [False,False,False]
+        self.playTimeVals = [
+            10 * 60 * 1000, # ten mins
+            60 * 60 * 1000,# 1 hour
+            10 * 60 * 60 * 1000,  # 10 hour
+        ]
+        self.starsCollected = [False,False,False]
+        self.starVals = [5,20,100]
+
 class Game:
     def __init__(self):
         self.gravity = 0.981
@@ -355,25 +369,24 @@ class Game:
                        colA[2]+(i*(colB[2]-colA[2])/step)]
             pygame.draw.rect(SCREEN,drawCol,(0,i*(SCRH/step),SCRW,step))
 
-    def trigger_death(self,die=True):
-        if die:
-            if not self.player.isDead:
-                self.player.isDead = True
-                self.animations.append(Death_Particle(self.player.xpos,self.player.ypos+14,self.player.colour))
-                self.enableMovement = False
-                self.stats.deaths += 1
+    def trigger_death(self):
+        self.animations.append(Death_Particle(self.player.xpos,self.player.ypos+14,self.player.colour))
+        self.enableMovement = False
+        self.stats.deaths += 1
 
-        self.player.xvel = 0
-        self.player.yvel = 0
+        #self.player.xvel = 0
+        #self.player.yvel = 0
                 
-        if not self.contains_animation("death"):
-            self.player.xpos,self.player.ypos = self.spawnPoint[0]+20,self.spawnPoint[1]+20
-            self.update_level(next=False) # lazy, only need to change entity positions
-            self.player.wallData = [False,False,False,False,False]
-            self.player.isDead = False
-            self.player.atFinish = False
-            self.enableMovement = True
-            self.restart = False
+        #if not self.contains_animation("death"):
+
+    def reset_player(self):
+        self.player.xpos,self.player.ypos = self.spawnPoint[0]+20,self.spawnPoint[1]+20
+        self.update_level(next=False) # lazy, only need to change entity positions
+        self.player.wallData = [False,False,False,False,False]
+        self.player.isDead = False
+        self.player.atFinish = False
+        self.enableMovement = True
+        self.restart = False
 
     def contains_animation(self,name):
         found = False
@@ -442,7 +455,8 @@ class Game:
                     if self.settings.annoyingBosses:
                         self.end()
                     else:
-                        self.trigger_death(die=True)
+                        self.player.isDead = True
+                        #self.trigger_death(die=True)
                 for plat in self.platforms:
                     if pygame.Rect.colliderect(toRect(plat),toRect((item.xpos,item.ypos,30,30))):
                         item.needsDel = True
@@ -521,10 +535,23 @@ class Game:
 
     def tick(self):
         if self.restart:
-            self.trigger_death(die=False)
+            self.player.isDead = True
+            #self.trigger_death(die=False)
 
-##        playerBox = get_actual_pos([self.player.xpos,self.player.ypos,50,50])
-##        playerRect = pygame.Rect(self.player.xpos-25,self.player.ypos-25,50,50)
+        if self.player.isDead and not self.contains_animation("death"):
+            if self.enableMovement:
+                self.trigger_death() # has just died
+            else:
+                self.reset_player() # has finished animation
+
+        if self.contains_animation("death"):
+            self.enableMovement = False
+            self.player.move = [False,False,False,False]
+            if self.player.ypos < 5000:
+                self.player.yvel = -self.player.gravity
+        else:
+            self.enableMovement = True
+
         self.player.wallData = [False,False,False,False,False]
         for mob in self.entities:
             mob.wallData = [False,False,False,False,False]
@@ -617,7 +644,8 @@ class Game:
             orn = self.spikeDir[self.spikes.index(item)]
             spike = toRect(get_actual_pos(spike_convert(item,orn)))
             if pygame.Rect.colliderect(self.player.hitbox.actWhole,spike):
-                self.trigger_death()
+                self.player.isDead = True
+                #self.trigger_death()
                 break
 
             for mob in self.entities:
@@ -666,7 +694,8 @@ class Game:
         for which in [self.bossEntities, self.entities]:
             for mob in which:
                 if pygame.Rect.colliderect(mob.hitbox.actWhole,self.player.hitbox.actWhole):
-                    self.trigger_death()
+                    self.player.isDead = True
+                    #self.trigger_death()
                     if which == self.bossEntities and self.settings.annoyingBosses:
                         self.end()
 
@@ -860,7 +889,7 @@ class Game:
         # why tf am I getting everything from the json file I have them stored in lists whyyyy
         blitToCam(self.img.finish, self.data[str(self.levelIDX)]["end"])  # VERY INEFFICIENT FIX ME
         for item in self.data[str(self.levelIDX)]["platforms"]:
-            sendToCam(item,col=self.platformCol)
+            sendPlatformToCam(item,self.misc.highResTextures,col=self.platformCol)
         for i in range(len(self.data[str(self.levelIDX)]["spikes"])):
             #print(f"len of spikes {len(self.data[str(self.levelIDX)]["spikes"])}\nlen of spikeDir {len(self.spikeDir)}")
             sendSpikeToCam(self.data[str(self.levelIDX)]["spikes"][i-1],orn=self.spikeDir[i-1])
@@ -998,7 +1027,8 @@ class Game:
         newMouseRect = get_actual_pos(self.editor.mouseRect)
         
         if self.restart:
-            self.trigger_death(die=False)
+            #self.trigger_death(die=False)
+            self.player.xpos,self.player.ypos = 0,0
 
         if self.editor.linkRect.pressed():
             self.editor.linkMode = not self.editor.linkMode
@@ -1251,7 +1281,7 @@ class Player:
         else:
             self.colour = self.img.get_at((20,20))
         #self.update_hitboxes()
-##        self.rect = pygame.Rect(self.player.xpos-25,self.player.ypos-25,50,50)
+        #self.rect = pygame.Rect(self.player.xpos-25,self.player.ypos-25,50,50)
 
     def draw(self):
 ##        self.colour = rgb.get()
@@ -1293,7 +1323,6 @@ class Player:
         self.hitbox.actBottom = toRect(get_actual_pos([self.xpos-10,self.ypos+2,20,18]))
         self.hitbox.actLeft = toRect(get_actual_pos([self.xpos-20,self.ypos-20,5,30]))
         self.hitbox.actRight = toRect(get_actual_pos([self.xpos+15,self.ypos-20,5,30]))
-
 
     def check(self):
         # unused
@@ -1814,6 +1843,14 @@ def sendSpikeToCam(item,orn=0,col=colour.red):
 
     return None
 
+def sendPlatformToCam(item,isHighRes,col=None):
+    if isHighRes:
+        for x in range(int(item[2]//50)):
+            for y in range(int(item[3]//50)):
+                blitToCam(img.rock,(item[0]+(x*50),item[1]+(y*50)))
+    else:
+        sendToCam(item,col=col)
+
 def sendToCam(item,name=None,col=None):
     newRect = [item[0]-game.player.xpos+(SCRW//2),
                item[1]-game.player.ypos+(SCRH//2),
@@ -1835,7 +1872,7 @@ def blitToCam(item,pos):
     y = (SCRH//2)-game.player.ypos+pos[1]
     w = item.get_height()
     h = item.get_width()
-    if (x+h > 0 != x < SCRW) and (y+w > 0 != y < SCRW):
+    if (x+h > -50 != x < SCRW+50) and (y+w > -50 != y < SCRW+50):
         SCREEN.blit(item,(x,y))
 
 def get_screen_pos(thing):
@@ -1915,7 +1952,7 @@ def tick_boxes():
             game.update_level(next=False)
             
         game.scene = "menu"
-        game.trigger_death(die=False)
+        game.reset_player()
 
     if editorBox.isPressed():
         game.scene = "editor"
@@ -2069,13 +2106,14 @@ while True:
         game.draw_animations()
         
         if game.player.ypos > 5000 or game.player.isDead:
-            game.trigger_death()
+            game.player.isDead = True
+            #game.trigger_death()
         if game.player.atFinish:
             game.update_level(next=True)
-            game.trigger_death(die=False)
+            game.reset_player()
+            #game.trigger_death(die=False)
         levelIDXBox.update_message("Level " + str(game.levelIDX))
 
-            
 #        sendToCam(list(game.player.hitbox.bottom),"hitbox",col=colour.white)
 #        sendToCam(list(game.player.hitbox.left),"hitbox",col=colour.white)
 #        sendToCam(list(game.player.hitbox.right),"hitbox",col=colour.white)
