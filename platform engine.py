@@ -11,7 +11,8 @@ import utility as u
 SCRW = 800
 SCRH = 600
 TICKRATE = 60
-FONT = "notoserif"
+FONT = "mvboli"
+FONTSIZEBASE = 18
 
 pygame.init()
 pygame.mixer.init()
@@ -20,9 +21,9 @@ u.init(SCREEN)
 rgb = u.rainbow()
 clock = pygame.time.Clock()
 pygame.display.set_caption("Platform game!")
-font18 = pygame.font.SysFont(FONT,18)
-font28 = pygame.font.SysFont(FONT,28)
-font50 = pygame.font.SysFont(FONT,50)
+font18 = pygame.font.SysFont(FONT,FONTSIZEBASE)
+font28 = pygame.font.SysFont(FONT,FONTSIZEBASE+10)
+font50 = pygame.font.SysFont(FONT,FONTSIZEBASE+32)
 fontTitle = pygame.font.SysFont("courier new",70)
 fontTitle.set_bold(True)
 
@@ -43,6 +44,8 @@ class Images:
         self.buttonPressed = pygame.image.load("button_pressed.png")
         self.link = pygame.image.load("link.png")
         self.rock = pygame.image.load("rock.png")
+        self.disappearingRock = pygame.image.load("disappearing_rock.png")
+        self.appearingRock = pygame.image.load("appearing_rock.png")
         self.fanColumn = [
             pygame.image.load("fan_column1.png"),
             pygame.image.load("fan_column2.png"),
@@ -210,16 +213,8 @@ class MiscData:
 
         self.highResTextures = True
 
-class Achievements:
-    def __init__(self):
-        self.playTime = [False,False,False]
-        self.playTimeVals = [
-            10 * 60 * 1000, # ten mins
-            60 * 60 * 1000,# 1 hour
-            10 * 60 * 60 * 1000,  # 10 hour
-        ]
-        self.starsCollected = [False,False,False]
-        self.starVals = [5,20,100]
+        self.hasTransition = False
+        self.wasTransition = False
 
 class Game:
     def __init__(self):
@@ -228,7 +223,7 @@ class Game:
         self.restart = False # if the player presses the restart key
         self.scale = 1
 
-        self.player = Player(gravity=0.981,img=img.body)
+        self.player = Player(gravity=self.gravity,img=img.body)
         self.editor = Editor()
         self.img = Images()
         self.sound = Soundboard()
@@ -361,8 +356,9 @@ class Game:
     def draw_gradient(self):
         step = 100
         colA = (200,200,255)
-        colB = (200,200,170) # yellowish
-        #colB = (210,180,230) # pinkish
+        colB = (200,200,170) # yellow
+        #colB = (230, 200, 200) # pink
+
         for i in range(step):
             drawCol = [colA[0]+(i*((colB[0]-colA[0])/step)),
                        colA[1]+(i*((colB[1]-colA[1])/step)),
@@ -534,6 +530,9 @@ class Game:
                 self.player.blinkWait = 100
 
     def tick(self):
+        self.misc.wasTransition = self.misc.hasTransition
+        self.misc.hasTransition = self.contains_animation("transition")
+
         if self.restart:
             self.player.isDead = True
             #self.trigger_death(die=False)
@@ -889,7 +888,7 @@ class Game:
         # why tf am I getting everything from the json file I have them stored in lists whyyyy
         blitToCam(self.img.finish, self.data[str(self.levelIDX)]["end"])  # VERY INEFFICIENT FIX ME
         for item in self.data[str(self.levelIDX)]["platforms"]:
-            sendPlatformToCam(item,self.misc.highResTextures,col=self.platformCol)
+            sendPlatformToCam(item,self.misc.highResTextures,col=self.platformCol,platType="normal")
         for i in range(len(self.data[str(self.levelIDX)]["spikes"])):
             #print(f"len of spikes {len(self.data[str(self.levelIDX)]["spikes"])}\nlen of spikeDir {len(self.spikeDir)}")
             sendSpikeToCam(self.data[str(self.levelIDX)]["spikes"][i-1],orn=self.spikeDir[i-1])
@@ -924,14 +923,14 @@ class Game:
                 #print(f"idx {idx}")
                 if idx != -1:
                     if not self.buttonPresses[idx]:
-                        sendToCam(item, col=[80,80,100])
+                        sendPlatformToCam(item,self.misc.highResTextures,col=(0,25,80),platType="disappearing")
 
             for item in self.data[str(self.levelIDX)]["appearing platforms"]:
                 plat = self.data[str(self.levelIDX)]["appearing platforms"].index(item)
                 idx = self.appearingPlatformLinks[plat]
                 if idx != -1:
                     if self.buttonPresses[idx]:
-                        sendToCam(item, col=[180,180,200])
+                        sendPlatformToCam(item,self.misc.highResTextures,col=(100,150,221),platType="appearing")
             
         if self.scene == "editor":
             for item in self.data[str(self.levelIDX)]["mobs"]:
@@ -1269,6 +1268,7 @@ class Player:
         self.isDead = False
         self.lastIsDead = False
         self.atFinish = False
+
         self.lastBlink = 0
         self.isBlinking = False
         self.blinkWait = random.randint(3,6) * 1000
@@ -1277,7 +1277,7 @@ class Player:
         self.onFloor = False
         self.hitbox = Mob_Hitbox()
         if self.img == None:
-            self.colour = (0,68,213)
+            self.colour = (0,141,201)
         else:
             self.colour = self.img.get_at((20,20))
         #self.update_hitboxes()
@@ -1766,18 +1766,30 @@ class Here(Animation):
             self.finished = True
         pygame.draw.rect(SCREEN,colour.white,get_screen_pos([self.xpos-20,self.ypos-20,40,40]),width=3)
 
+class Transition(Animation):
+    def __init__(self):
+        super().__init__(0,0)
+        self.interval = 5
+        self.name = "transition"
+        self.amount = 20
+
+    def draw(self):
+        pygame.draw.rect(SCREEN,colour.black,(0,0,SCRW,self.frame*self.amount))
+        if self.frame > SCRH//self.amount:
+            self.finished = True
+
 ##################################################
 
 
 titleBox = u.old_textbox("PLATFORM ENGINE",fontTitle,(SCRW//2,150),backgroundCol=None,tags=["menu"])
-startBox = u.old_textbox("PLAY",font28,(SCRW//2,400),tags=["menu"])
-menuBox = u.old_textbox("MENU",font18,(SCRW-35,20),tags=["ingame","editor","levels","settings","achievements"])
-editorBox = u.old_textbox("EDITOR",font18,(SCRW//2,500),tags=["menu"])
-levelsBox = u.old_textbox("LEVELS",font18,(SCRW//2,300),tags=["menu"])
+startBox = u.old_textbox("PLAY",font28,(SCRW//2,400),oval=True,tags=["menu"])
+menuBox = u.old_textbox("MENU",font18,(SCRW-35,20),oval=True,tags=["ingame","editor","levels","settings","achievements"])
+editorBox = u.old_textbox("EDITOR",font18,(SCRW//2,500),oval=True,tags=["menu"])
+levelsBox = u.old_textbox("LEVELS",font18,(SCRW//2,300),oval=True,tags=["menu"])
 selectedBox = u.old_textbox("",font18,(SCRW//2,60),tags=["editor"])
 coordBox = u.old_textbox("",font18,(SCRW//3,20),tags=["editor"])
 levelIDXBox = u.old_textbox("",font18,(SCRW//2,20),tags=["ingame","editor"])
-settingsBox = u.old_textbox("SETTINGS",font18,(SCRW//1.3,500),tags=["menu"])
+settingsBox = u.old_textbox("SETTINGS",font18,(SCRW//1.3,500),oval=True,tags=["menu"])
 showFPSBox = u.old_textbox("Show FPS",font18,(SCRW//2,50),tags=["settings"])
 FPSBox = u.old_textbox("FPS: -",font18,(SCRW-50,SCRH-50),tags=["ingame","editor","settings"])
 statsTitleBox = u.old_textbox("Statistics",font28,(SCRW//2,300),tags=["settings"])
@@ -1788,14 +1800,13 @@ uptimeBox = u.old_textbox("Time Played: -",font18,(SCRW//2,550),tags=["settings"
 resetStatsBox = u.old_textbox("RESET STATISTICS",font18,(SCRW//5,550),tags=["settings"],backgroundCol=colour.red,textCol=colour.black)
 annoyingBossesBox = u.old_textbox("Annoyinger bosses",font18,(SCRW//2,150),tags=["settings"])
 soundBox = u.old_textbox("Sound",font18,(SCRW//2,100),tags=["settings"])
-achievementBox = u.old_textbox("Achievements",font18,(SCRW-(SCRW//1.33),500),tags=["menu"])
-achievementTitleBox = u.old_textbox("ACHIEVEMENTS",fontTitle,(SCRW//2,100),tags=["achievements"],backgroundCol=None)
+highResTexturesBox = u.old_textbox("Fancy Textures",font18,(SCRW//2,200),tags=["settings"])
 
 linkBox = u.old_textbox("Link mode",font18,(SCRW//2,100),tags=["editor"],backgroundCol=colour.red)
 
 boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,levelsBox,settingsBox,
          showFPSBox,statsTitleBox,collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox,
-         resetStatsBox,annoyingBossesBox,soundBox,achievementBox,achievementTitleBox]
+         resetStatsBox,annoyingBossesBox,soundBox,highResTexturesBox]
 # hard coded textboxes
 
 ##################################################
@@ -1843,11 +1854,18 @@ def sendSpikeToCam(item,orn=0,col=colour.red):
 
     return None
 
-def sendPlatformToCam(item,isHighRes,col=None):
+def sendPlatformToCam(item,isHighRes,col=None,platType="normal"):
     if isHighRes:
+        if platType == "normal":
+            image = img.rock
+        elif platType == "disappearing":
+            image = img.disappearingRock
+        elif platType == "appearing":
+            image = img.appearingRock
+
         for x in range(int(item[2]//50)):
             for y in range(int(item[3]//50)):
-                blitToCam(img.rock,(item[0]+(x*50),item[1]+(y*50)))
+                blitToCam(image,(item[0]+(x*50),item[1]+(y*50)))
     else:
         sendToCam(item,col=col)
 
@@ -1917,9 +1935,8 @@ def reposition_boxes():
     resetStatsBox.pos = (SCRW//5,550)
     annoyingBossesBox.pos = (SCRW//2,150)
     soundBox.pos = (SCRW//2,100)
-    achievementBox.pos = (SCRW-(SCRW//1.33),500)
     linkBox.pos = (SCRW//2,100)
-    achievementTitleBox.pos = (SCRW//2,150)
+    highResTexturesBox.pos = (SCRW//2,200)
 
     game.editor.linkRect.move_to(SCRW-100,SCRH-100)
 
@@ -1935,7 +1952,7 @@ def tick_boxes():
         if now() - game.misc.lastFPSUpdate > game.misc.FPSUpdateInterval:
             game.misc.lastFPSUpdate = now()
             fps = str(clock.get_fps()).split(".")
-            FPSBox.update_message(f"FPS:{fps[0]}.{fps[1][:3]}")
+            FPSBox.update_message(f"FPS:{fps[0]}.{fps[1][:2]}")
         FPSBox.isShowing = True
         FPSBox.display()
     else:
@@ -1982,8 +1999,8 @@ def tick_boxes():
     if game.scene == "editor" and game.editor.linkMode:
         linkBox.display()
 
-    if achievementBox.isPressed():
-        game.scene = "achievements"
+    if highResTexturesBox.isPressed():
+        game.misc.highResTextures = not game.misc.highResTextures
 
     if soundBox.isPressed():
         game.sound.enabled = not game.sound.enabled
@@ -2109,8 +2126,12 @@ while True:
             game.player.isDead = True
             #game.trigger_death()
         if game.player.atFinish:
-            game.update_level(next=True)
-            game.reset_player()
+            if not game.contains_animation("transition"):
+                if game.misc.wasTransition:
+                    game.update_level(next=True)
+                    game.reset_player()
+                else:
+                    game.animations.append(Transition())
             #game.trigger_death(die=False)
         levelIDXBox.update_message("Level " + str(game.levelIDX))
 
@@ -2166,11 +2187,16 @@ while True:
         deathCountBox.update_message(f"Number of deaths: {game.stats.deaths}")
         uptimeBox.update_message(uptime)
 
-        if game.settings.showFPS:
-            SCREEN.blit(img.tick,((SCRW//2)+50,35))
+        th = img.tick.get_height()/2
 
-        if game.settings.annoyingBosses:
-            SCREEN.blit(img.tick,((SCRW//2)+100,135))
+        if game.settings.showFPS:
+            SCREEN.blit(img.tick,(showFPSBox.pos[0]+showFPSBox.textRect[2]/2,showFPSBox.pos[1]-th))
 
         if game.sound.enabled:
-            SCREEN.blit(img.tick,((SCRW//2)+30,85))
+            SCREEN.blit(img.tick,(soundBox.pos[0]+soundBox.textRect[2]/2,soundBox.pos[1]-th))
+
+        if game.settings.annoyingBosses:
+            SCREEN.blit(img.tick,(annoyingBossesBox.pos[0]+annoyingBossesBox.textRect[2]/2,annoyingBossesBox.pos[1]-th))
+
+        if game.misc.highResTextures:
+            SCREEN.blit(img.tick,(highResTexturesBox.pos[0]+highResTexturesBox.textRect[2]/2,highResTexturesBox.pos[1]-th))
