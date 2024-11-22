@@ -21,6 +21,7 @@ u.init(SCREEN)
 rgb = u.rainbow()
 clock = pygame.time.Clock()
 pygame.display.set_caption("Platform game!")
+pygame.display.set_icon(pygame.image.load("platform icon.bmp"))
 font18 = pygame.font.SysFont(FONT,FONTSIZEBASE)
 font28 = pygame.font.SysFont(FONT,FONTSIZEBASE+10)
 font50 = pygame.font.SysFont(FONT,FONTSIZEBASE+32)
@@ -154,6 +155,8 @@ class Level_slots:
             self.boxes.append(u.old_textbox(" "+str(i+1)+" ",font50,(x,y)))
 
     def tick(self):
+        for item in self.boxes:
+            item.get_presses()
         if self.num > 15 and ((math.ceil(self.num/15) != self.page)):
             self.nextBox.isShowing = True
             self.nextBox.display()
@@ -1028,6 +1031,7 @@ class Game:
         if self.restart:
             #self.trigger_death(die=False)
             self.player.xpos,self.player.ypos = 0,0
+            self.restart = False
 
         if self.editor.linkRect.pressed():
             self.editor.linkMode = not self.editor.linkMode
@@ -1941,7 +1945,9 @@ def reposition_boxes():
     game.editor.linkRect.move_to(SCRW-100,SCRH-100)
 
 def tick_boxes():
+    u.tick()
     for item in boxes:
+        item.get_presses()
         if game.scene in item.tags:
             item.isShowing = True
             item.display()
