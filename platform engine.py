@@ -18,7 +18,6 @@ pygame.init()
 pygame.mixer.init()
 SCREEN = pygame.display.set_mode((SCRW,SCRH),pygame.RESIZABLE)
 u.init(SCREEN)
-rgb = u.rainbow()
 clock = pygame.time.Clock()
 pygame.display.set_caption("Platform game!")
 pygame.display.set_icon(pygame.image.load("platform icon.bmp"))
@@ -191,6 +190,8 @@ class Settings:
         self.SCRWEX = 0
         self.SCRHEX = 0
         self.annoyingBosses = False
+        self.chaosMode = False
+        self.highResTextures = True
 
 class Stats:
     def __init__(self):
@@ -212,12 +213,24 @@ class MiscData:
         self.FPSUpdateInterval = 200
 
         self.platformCol = []
-        self.bgCol = []
-
-        self.highResTextures = True
+        self.bgCol = [(200,200,255),
+                      (200,200,170)]
 
         self.hasTransition = False
         self.wasTransition = False
+
+class Chaos:
+    def __init__(self):
+        self.interval = 5 * 1000
+        self.displayTime = 5 * 1000
+        self.state = 1
+        self.lastChange = 0
+        self.action = 0
+        self.actions = ["spawn enemies","rgb","low gravity","speed","random teleport","boss fight"]
+
+    def reset(self):
+        self.lastChange = now()
+        self.state = 1
 
 class Game:
     def __init__(self):
@@ -233,6 +246,8 @@ class Game:
         self.settings = Settings()
         self.stats = Stats()
         self.misc = MiscData()
+        self.chaos = Chaos()
+        self.rgb = u.rainbow()
 
         self.clouds = []
 
@@ -326,6 +341,50 @@ class Game:
 
             self.spikeDir.append(direction)
 
+    def start_chaos(self,what):
+        if what == "spawn enemies":
+            for _ in range(5):
+                posMod = make_position_modifier(3,8)
+                self.entities.append(Enemy(self.player.xpos+posMod[0],
+                                          self.player.ypos+posMod[1],
+                                          img=self.img.enemyBody))
+        elif what == "rgb":
+            pass # does this in the draw_gradient()
+
+        elif what == "boss fight":
+            posMod = make_position_modifier(5,10)
+            self.bossEntities.append(Boss(self.player.xpos + posMod[0],
+                                          self.player.ypos + posMod[1],
+                                          img=self.img.bossImg,
+                                          health=100))
+
+        elif what == "random teleport":
+            posMod = make_position_modifier(2,4)
+            self.player.xpos += posMod[0]
+            self.player.ypos += posMod[1]
+
+        if what == "speed":
+            self.player.maxXvel = 20
+            for which in [self.bossEntities,self.entities]:
+                for item in which:
+                    item.maxXvel = 10
+        else:
+            self.player.maxXvel = 10
+            for which in [self.bossEntities,self.entities]:
+                for item in which:
+                    item.maxXvel = random.randint(4,6)
+
+        if what == "low gravity":
+            self.player.gravity = 0.5
+            for which in [self.bossEntities,self.entities]:
+                for item in which:
+                    item.gravity = 0.5
+        else:
+            self.player.gravity = 0.981
+            for which in [self.bossEntities,self.entities]:
+                for item in which:
+                    item.gravity = 0.981
+
     def fix_stats_stars(self):
         for i in range(len(self.data)):
             if str(i+1) not in self.stats.stars:
@@ -358,9 +417,15 @@ class Game:
 
     def draw_gradient(self):
         step = 100
-        colA = (200,200,255)
-        colB = (200,200,170) # yellow
-        #colB = (230, 200, 200) # pink
+        if self.chaos.actions[self.chaos.action] == "rgb":
+            colA = self.rgb.get()
+            for _ in range(20):
+                self.rgb.tick()
+            colB = self.rgb.get()
+        else:
+            colA = self.misc.bgCol[0]
+            colB = self.misc.bgCol[1]
+
 
         for i in range(step):
             drawCol = [colA[0]+(i*((colB[0]-colA[0])/step)),
@@ -891,7 +956,7 @@ class Game:
         # why tf am I getting everything from the json file I have them stored in lists whyyyy
         blitToCam(self.img.finish, self.data[str(self.levelIDX)]["end"])  # VERY INEFFICIENT FIX ME
         for item in self.data[str(self.levelIDX)]["platforms"]:
-            sendPlatformToCam(item,self.misc.highResTextures,col=self.platformCol,platType="normal")
+            sendPlatformToCam(item,self.settings.highResTextures,col=self.platformCol,platType="normal")
         for i in range(len(self.data[str(self.levelIDX)]["spikes"])):
             #print(f"len of spikes {len(self.data[str(self.levelIDX)]["spikes"])}\nlen of spikeDir {len(self.spikeDir)}")
             sendSpikeToCam(self.data[str(self.levelIDX)]["spikes"][i-1],orn=self.spikeDir[i-1])
@@ -926,14 +991,14 @@ class Game:
                 #print(f"idx {idx}")
                 if idx != -1:
                     if not self.buttonPresses[idx]:
-                        sendPlatformToCam(item,self.misc.highResTextures,col=(0,25,80),platType="disappearing")
+                        sendPlatformToCam(item,self.settings.highResTextures,col=(0,25,80),platType="disappearing")
 
             for item in self.data[str(self.levelIDX)]["appearing platforms"]:
                 plat = self.data[str(self.levelIDX)]["appearing platforms"].index(item)
                 idx = self.appearingPlatformLinks[plat]
                 if idx != -1:
                     if self.buttonPresses[idx]:
-                        sendPlatformToCam(item,self.misc.highResTextures,col=(100,150,221),platType="appearing")
+                        sendPlatformToCam(item,self.settings.highResTextures,col=(100,150,221),platType="appearing")
             
         if self.scene == "editor":
             for item in self.data[str(self.levelIDX)]["mobs"]:
@@ -1804,13 +1869,15 @@ uptimeBox = u.old_textbox("Time Played: -",font18,(SCRW//2,550),tags=["settings"
 resetStatsBox = u.old_textbox("RESET STATISTICS",font18,(SCRW//5,550),tags=["settings"],backgroundCol=colour.red,textCol=colour.black)
 annoyingBossesBox = u.old_textbox("Annoyinger bosses",font18,(SCRW//2,150),tags=["settings"])
 soundBox = u.old_textbox("Sound",font18,(SCRW//2,100),tags=["settings"])
-highResTexturesBox = u.old_textbox("Fancy Textures",font18,(SCRW//2,200),tags=["settings"])
+highResTexturesBox = u.old_textbox("Fancy Textures",font18,(SCRW*0.6,200),tags=["settings"])
+chaosModeBox = u.old_textbox("Chaos Mode",font18,(SCRW*0.4,200),tags=["settings"],backgroundCol=[100,0,0])
+chaosModifierBox = u.old_textbox("-",font18,(SCRW*0.5,50),tags=["ingame"],backgroundCol=[0,0,0])
 
 linkBox = u.old_textbox("Link mode",font18,(SCRW//2,100),tags=["editor"],backgroundCol=colour.red)
 
 boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,levelsBox,settingsBox,
          showFPSBox,statsTitleBox,collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox,
-         resetStatsBox,annoyingBossesBox,soundBox,highResTexturesBox]
+         resetStatsBox,annoyingBossesBox,soundBox,highResTexturesBox,chaosModeBox]
 # hard coded textboxes
 
 ##################################################
@@ -1822,6 +1889,16 @@ def bind(minim,val,maxim):
         return minim
     else:
         return val
+
+def make_position_modifier(min,max):
+    posMod = [random.randint(min, max) * 50,
+              random.randint(min, max) * 50]
+    if random.randint(1, 2) == 1:
+        posMod[0] = -1 * posMod[0]
+    if random.randint(1, 2) == 1:
+        posMod[1] = -1 * posMod[1]
+
+    return posMod
 
 def sendSpikeToCam(item,orn=0,col=colour.red):
     #print(f"orn {orn} for {item}")
@@ -1940,7 +2017,10 @@ def reposition_boxes():
     annoyingBossesBox.pos = (SCRW//2,150)
     soundBox.pos = (SCRW//2,100)
     linkBox.pos = (SCRW//2,100)
-    highResTexturesBox.pos = (SCRW//2,200)
+    highResTexturesBox.pos = (SCRW*0.6,200)
+    chaosModeBox.pos = (SCRW*0.4,200)
+    chaosModifierBox.pos = (SCRW*0.5,50)
+
 
     game.editor.linkRect.move_to(SCRW-100,SCRH-100)
 
@@ -1964,10 +2044,36 @@ def tick_boxes():
     else:
         FPSBox.isShowing = False
 
+    if game.settings.chaosMode:
+        if game.scene in chaosModifierBox.tags:
+            chaosModifierBox.isShowing = True
+            chaosModifierBox.display()
+
+            if game.chaos.state == 1:
+                time = ((game.chaos.interval+1000) - (now() - game.chaos.lastChange))//1000
+                chaosModifierBox.update_message(f"Next modifier in {time}")
+                if time <= 0:
+                    game.chaos.state = 2
+                    game.chaos.lastChange = now()
+            if game.chaos.state == 2:
+                game.chaos.action = random.randint(0,len(game.chaos.actions)-1)
+                chaosModifierBox.update_message(f"Modifier: {game.chaos.actions[game.chaos.action].capitalize()}")
+                game.chaos.state = 3
+                game.start_chaos(game.chaos.actions[game.chaos.action])
+            if game.chaos.state == 3:
+                time = ((game.chaos.displayTime+1000) - (now() - game.chaos.lastChange)) // 1000
+                if time <= 0:
+                    game.chaos.state = 1
+                    game.chaos.lastChange = now()
+
+        else:
+            chaosModifierBox.isShowing = False
+
     if startBox.isPressed():
         game.scene = "ingame"
         game.init_clouds()
         game.orient_spikes()
+        game.chaos.reset()
 
     if menuBox.isPressed():
         if game.scene == "editor":
@@ -2006,12 +2112,15 @@ def tick_boxes():
         linkBox.display()
 
     if highResTexturesBox.isPressed():
-        game.misc.highResTextures = not game.misc.highResTextures
+        game.settings.highResTextures = not game.settings.highResTextures
 
     if soundBox.isPressed():
         game.sound.enabled = not game.sound.enabled
         if not game.sound.enabled:
             pygame.mixer.stop()
+
+    if chaosModeBox.isPressed():
+        game.settings.chaosMode = not game.settings.chaosMode
 
 def spike_convert(item,orn=0):
     if orn == 0:
@@ -2097,8 +2206,6 @@ img = Images()
 game = Game()
 levelSlots = Level_slots(len(game.data))
 
-##testEnemy = Enemy(200,0,img=img.enemyBody)
-##game.mobs.append(testEnemy)
 
 ##################################################
 
@@ -2175,6 +2282,7 @@ while True:
             levelSlots.pressed = False
             game.scene = "ingame"
             game.update_level(next=False)
+            game.chaos.reset()
 
     elif game.scene == "settings":
         #collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox
@@ -2204,5 +2312,9 @@ while True:
         if game.settings.annoyingBosses:
             SCREEN.blit(img.tick,(annoyingBossesBox.pos[0]+annoyingBossesBox.textRect[2]/2,annoyingBossesBox.pos[1]-th))
 
-        if game.misc.highResTextures:
+        if game.settings.highResTextures:
             SCREEN.blit(img.tick,(highResTexturesBox.pos[0]+highResTexturesBox.textRect[2]/2,highResTexturesBox.pos[1]-th))
+
+        if game.settings.chaosMode:
+            SCREEN.blit(img.tick, (
+            chaosModeBox.pos[0] + chaosModeBox.textRect[2] / 2, chaosModeBox.pos[1] - th))
