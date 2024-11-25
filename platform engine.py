@@ -32,14 +32,17 @@ class Images:
         #self.fanBase = pygame.image.load("fan base.png")
         #self.fanColumn = pygame.image.load("fan column.png")
         self.body = pygame.image.load("body.png")
+        self.bodyThick = pygame.image.load("body_thick.png")
         self.enemyBody = pygame.image.load("enemy_body.png")
+        self.enemyBodyThick = pygame.image.load("enemy_body_thick.png")
         self.star = pygame.image.load("star.png")
         self.finish = pygame.image.load("finish.png")
         self.checkpointOff = pygame.image.load("checkpoint_off.png")
         self.checkpointOn = pygame.image.load("checkpoint_on.png")
         self.tick = pygame.transform.scale_by(pygame.image.load("tick.png"),(0.2))
-        self.bossImg = pygame.image.load("boss face.png")
-        self.bossMenu = pygame.transform.scale_by(pygame.image.load("boss face.png"),0.2)
+        self.bossImg = pygame.image.load("boss_face.png")
+        self.bossImgThick = pygame.image.load("boss_face_thick.png")
+        self.bossMenu = pygame.transform.scale_by(pygame.image.load("boss_face.png"),0.2)
         self.buttonUnpressed = pygame.image.load("button_unpressed.png")
         self.buttonPressed = pygame.image.load("button_pressed.png")
         self.link = pygame.image.load("link.png")
@@ -212,7 +215,7 @@ class MiscData:
         self.lastFPSUpdate = 0
         self.FPSUpdateInterval = 200
 
-        self.platformCol = []
+        self.platformCol = colour.darkgrey
         self.bgCol = [(200,200,255),
                       (200,200,170)]
 
@@ -226,7 +229,7 @@ class Chaos:
         self.state = 1
         self.lastChange = 0
         self.action = 0
-        self.actions = ["spawn enemies","rgb","low gravity","speed","random teleport","boss fight"]
+        self.actions = ["spawn enemies","rgb","low gravity","speed","random teleport","boss fight","thick"]
 
     def reset(self):
         self.lastChange = now()
@@ -261,9 +264,6 @@ class Game:
 
         self.data = {} # the whole json file
         self.levelIDX = 1
-
-        self.platformCol = []
-        self.bgCol = []
 
         self.platforms = [] # list of item rects in current level
         self.spikes = []
@@ -356,34 +356,50 @@ class Game:
             self.bossEntities.append(Boss(self.player.xpos + posMod[0],
                                           self.player.ypos + posMod[1],
                                           img=self.img.bossImg,
-                                          health=100))
+                                          health=200))
 
         elif what == "random teleport":
             posMod = make_position_modifier(2,4)
             self.player.xpos += posMod[0]
             self.player.ypos += posMod[1]
 
-        if what == "speed":
+        elif what == "speed":
             self.player.maxXvel = 20
             for which in [self.bossEntities,self.entities]:
                 for item in which:
                     item.maxXvel = 10
-        else:
-            self.player.maxXvel = 10
-            for which in [self.bossEntities,self.entities]:
-                for item in which:
-                    item.maxXvel = random.randint(4,6)
 
-        if what == "low gravity":
+        elif what == "low gravity":
             self.player.gravity = 0.5
             for which in [self.bossEntities,self.entities]:
                 for item in which:
                     item.gravity = 0.5
-        else:
-            self.player.gravity = 0.981
-            for which in [self.bossEntities,self.entities]:
-                for item in which:
-                    item.gravity = 0.981
+
+        elif what == "thick":
+            self.player.update_image(self.img.bodyThick)
+            for item in self.entities:
+                item.update_image(self.img.enemyBodyThick)
+            for item in self.bossEntities:
+                item.update_image(self.img.bossImgThick)
+
+    def end_chaos(self):
+        self.chaos.reset()
+
+        self.player.update_image(self.img.body)
+        for item in self.entities:
+            item.update_image(self.img.enemyBody)
+        for item in self.bossEntities:
+            item.update_image(self.img.bossImg)
+
+        self.player.gravity = 0.981
+        for which in [self.bossEntities, self.entities]:
+            for item in which:
+                item.gravity = 0.981
+
+        self.player.maxXvel = 10
+        for which in [self.bossEntities, self.entities]:
+            for item in which:
+                item.maxXvel = random.randint(4, 6)
 
     def fix_stats_stars(self):
         for i in range(len(self.data)):
@@ -509,9 +525,9 @@ class Game:
 
                 #print(f"Boss state: {mob.state}")
             if mob.state == 2:
-                self.animations.append(Charge_Up(mob.xpos-125, mob.ypos - 350))
+                self.animations.append(Charge_Up(mob.xpos-(mob.width//2), mob.ypos - (mob.height+100)))
             elif mob.state == 3 and mob.firing:
-                mob.projectiles.append(Boss_Projectile(mob.xpos-125,mob.ypos-350,mob.target))
+                mob.projectiles.append(Boss_Projectile(mob.xpos-(mob.width//2),mob.ypos-(mob.height+100),mob.target))
 
             for item in mob.projectiles:
                 item.target = mob.target
@@ -804,9 +820,9 @@ class Game:
 
         for enemy in self.bossEntities:
             if enemy.wallData[0] and enemy.yvel == 0:
-                enemy.ypos = ((enemy.ypos // 50) * 50)
+                enemy.ypos = ((enemy.ypos // 50) * 50) + 4
                 if enemy.lastYvel != 0:
-                    self.animations.append(Impact_Particle(enemy.xpos,enemy.ypos+14,colour.darkgrey))
+                    self.animations.append(Impact_Particle(enemy.xpos,enemy.ypos+10,colour.darkgrey))
 
         if self.player.wallData[3] and self.player.yvel < 0:# and not self.player.wallData[0]: # top only
             self.player.wallData[1] = False
@@ -893,15 +909,6 @@ class Game:
                 "appearing platforms": [],
                 "appearing platform links":[]}
 
-        try:
-            self.platformCol = self.data[str(self.levelIDX)]["platform colour"]
-        except KeyError:
-            self.platformCol = colour.darkgrey
-        try:
-            self.bgCol = self.data[str(self.levelIDX)]["background colour"]
-        except KeyError:
-            self.bgCol = [200,200,250]
-        
         self.spawnPoint = self.data[str(self.levelIDX)]["start"]
         for item in self.data[str(self.levelIDX)]["platforms"]:
             self.platforms.append(item)
@@ -956,7 +963,7 @@ class Game:
         # why tf am I getting everything from the json file I have them stored in lists whyyyy
         blitToCam(self.img.finish, self.data[str(self.levelIDX)]["end"])  # VERY INEFFICIENT FIX ME
         for item in self.data[str(self.levelIDX)]["platforms"]:
-            sendPlatformToCam(item,self.settings.highResTextures,col=self.platformCol,platType="normal")
+            sendPlatformToCam(item,self.settings.highResTextures,col=self.misc.platformCol,platType="normal")
         for i in range(len(self.data[str(self.levelIDX)]["spikes"])):
             #print(f"len of spikes {len(self.data[str(self.levelIDX)]["spikes"])}\nlen of spikeDir {len(self.spikeDir)}")
             sendSpikeToCam(self.data[str(self.levelIDX)]["spikes"][i-1],orn=self.spikeDir[i-1])
@@ -1337,6 +1344,14 @@ class Player:
         self.isDead = False
         self.lastIsDead = False
         self.atFinish = False
+        self.width = 0
+        self.height = 0
+
+        try:
+            self.update_image(self.img)
+        except:
+            self.width = 20
+            self.height = 20
 
         self.lastBlink = 0
         self.isBlinking = False
@@ -1358,7 +1373,7 @@ class Player:
         if self.img == None:
             pygame.draw.rect(SCREEN,self.colour,((SCRW//2)-20,(SCRH//2)-20,40,40))
         else:
-            SCREEN.blit(self.img,((SCRW//2)-20,(SCRH//2)-20))
+            SCREEN.blit(self.img,((SCRW-self.width)//2,(SCRH-self.height)//2))
         # everything else in the draw function is not necessary
         if not self.isBlinking:
             pygame.draw.circle(SCREEN,colour.white,(SCRW//2,(SCRH//2)-5),10)
@@ -1432,6 +1447,11 @@ class Player:
         self.xpos += self.xvel
         self.ypos += self.yvel
 
+    def update_image(self,surf):
+        self.img = surf
+        self.width = self.img.get_width()
+        self.height = self.img.get_height()
+
 class Enemy:
     def __init__(self,xpos,ypos,maxXvel=5,maxYvel=30,gravity=0.981,img=None):
         self.xpos = xpos
@@ -1451,6 +1471,14 @@ class Enemy:
         self.needsDel = False
         self.wallData = [False,False,False,False,False]
         self.hitbox = Mob_Hitbox()
+        self.width = 0
+        self.height = 0
+
+        try:
+            self.update_image(self.img)
+        except:
+            self.width = 20
+            self.height = 20
 
     def pathfind(self):
         self.canSeeTarget = self.get_dist(self.target) < self.maxTargetDist
@@ -1465,7 +1493,7 @@ class Enemy:
             self.xvel = self.xvel * 0.8
 
     def draw(self):
-        blitToCam(self.img,(self.xpos-20,self.ypos-10))
+        blitToCam(self.img,(self.xpos-self.width//2,self.ypos-(self.height//2)+10))
         pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-game.player.xpos+self.xpos,(SCRH//2)+5-game.player.ypos+self.ypos),10)
         if self.xvel == 0:        
                 pygame.draw.circle(SCREEN,colour.black,(SCRW//2-game.player.xpos+self.xpos,(SCRH//2)+5-game.player.ypos+self.ypos),7)
@@ -1532,18 +1560,23 @@ class Enemy:
     def fix_center(self):
         self.center = [self.xpos, self.ypos]
 
+    def update_image(self,surf):
+        self.img = surf
+        self.width = self.img.get_width()
+        self.height = self.img.get_height()
+
 class Boss(Enemy):
     def __init__(self,xpos,ypos,img,maxXvel=6,maxYvel=50,health=600,gravity=0.981):
         super().__init__(xpos,ypos,maxXvel=maxXvel,maxYvel=maxYvel,gravity=0.981,img=img)
         self.maxHealth = health
         self.health = self.maxHealth
-        self.xcen = self.img.get_width()
-        self.ycen = self.img.get_height()-50
         self.hb = u.healthBar(0,0,self.maxHealth)
         self.hb.width = 150
         self.hb.height = 30
         self.maxTargetDist = 1000
         self.projectiles = []
+        self.width = 0
+        self.height = 0
 
         self.vulnerable = False
         self.charge = 0
@@ -1557,8 +1590,10 @@ class Boss(Enemy):
         self.lastStateChange = 0
         self.stateChangeInterval = 3000
 
+        self.update_image(self.img)
+
     def draw(self):
-        blitToCam(self.img,(self.xpos-self.xcen,self.ypos-self.ycen))
+        blitToCam(self.img,(self.xpos-self.width,self.ypos-self.height))
         self.hb.draw()
 
         #sendToCam(list(self.hitbox.bottom), "hitbox", col=colour.white)
@@ -1570,20 +1605,20 @@ class Boss(Enemy):
     def update_hitbox(self):
         pos = get_screen_pos((self.xpos, self.ypos,0,0))
         self.hb.hp = self.health
-        self.hb.xpos = pos[0] - 200
-        self.hb.ypos = pos[1] - 250
+        self.hb.xpos = pos[0] - self.width + 50
+        self.hb.ypos = pos[1] - self.height - 50
 
-        self.hitbox.whole = toRect([self.xpos - self.xcen, self.ypos - self.ycen, self.xcen, self.ycen+50])
-        self.hitbox.top = toRect([self.xpos - self.xcen, self.ypos - self.ycen, self.xcen, 10])
-        self.hitbox.bottom = toRect([self.xpos - self.xcen, self.ypos + self.ycen//2 - 60, self.xcen, 10])
-        self.hitbox.left = toRect([self.xpos - self.xcen, self.ypos - self.ycen, 10, self.ycen-5])
-        self.hitbox.right = toRect([self.xpos - 10, self.ypos - self.ycen, 10, self.ycen-5])
+        self.hitbox.whole = toRect([self.xpos - self.width, self.ypos - self.height, self.width, self.height])
+        self.hitbox.top = toRect([self.xpos - self.width, self.ypos - self.height, self.width, 10])
+        self.hitbox.bottom = toRect([self.xpos - self.width, self.ypos, self.width, 10])
+        self.hitbox.left = toRect([self.xpos - self.width, self.ypos - self.height, 10, self.height-5])
+        self.hitbox.right = toRect([self.xpos - 10, self.ypos - self.height, 10, self.height-5])
 
-        self.hitbox.actWhole = toRect(get_actual_pos([self.xpos - self.xcen, self.ypos - self.ycen, self.xcen, self.ycen+50]))
-        self.hitbox.actTop = toRect(get_actual_pos([self.xpos - self.xcen, self.ypos - self.ycen, self.xcen, 10]))
-        self.hitbox.actBottom = toRect(get_actual_pos([self.xpos - self.xcen, self.ypos + self.ycen//2 - 60, self.xcen, 10]))
-        self.hitbox.actLeft = toRect(get_actual_pos([self.xpos - self.xcen, self.ypos - self.ycen, 10, self.ycen-5]))
-        self.hitbox.actRight = toRect(get_actual_pos([self.xpos - 10, self.ypos - self.ycen, 10, self.ycen-5]))
+        self.hitbox.actWhole = toRect(get_actual_pos([self.xpos - self.width, self.ypos - self.height, self.width, self.height]))
+        self.hitbox.actTop = toRect(get_actual_pos([self.xpos - self.width, self.ypos - self.height, self.width, 10]))
+        self.hitbox.actBottom = toRect(get_actual_pos([self.xpos - self.width, self.ypos, self.width, 10]))
+        self.hitbox.actLeft = toRect(get_actual_pos([self.xpos - self.width, self.ypos - self.height, 10, self.height-5]))
+        self.hitbox.actRight = toRect(get_actual_pos([self.xpos - 10, self.ypos - self.height, 10, self.height-5]))
 
     def wepaon_sequence(self):
         if self.state == 1: # passive
@@ -1612,10 +1647,10 @@ class Boss(Enemy):
                     self.vulnerable = False
 
     def get_dist(self,pos):
-        return math.sqrt((pos[0]-self.xpos-self.xcen//2)**2+(pos[1]-self.ypos)**2)
+        return math.sqrt((pos[0]-self.xpos-self.height//2)**2+(pos[1]-self.ypos)**2)
 
     def fix_center(self):
-        self.center = [self.xpos-self.xcen//2, self.ypos]
+        self.center = [self.xpos-self.width//2, self.ypos]
 
     def tick_projectiles(self):
         toDel = []
@@ -1626,6 +1661,11 @@ class Boss(Enemy):
 
         for item in toDel:
             self.projectiles.remove(item)
+
+    def update_image(self,surf):
+        self.img = surf
+        self.width = self.img.get_width()
+        self.height = self.img.get_height()
 
 class Boss_Projectile:
     def __init__(self,xpos,ypos,target):
@@ -2056,6 +2096,7 @@ def tick_boxes():
                     game.chaos.state = 2
                     game.chaos.lastChange = now()
             if game.chaos.state == 2:
+                game.end_chaos()
                 game.chaos.action = random.randint(0,len(game.chaos.actions)-1)
                 chaosModifierBox.update_message(f"Modifier: {game.chaos.actions[game.chaos.action].capitalize()}")
                 game.chaos.state = 3
