@@ -1,8 +1,22 @@
 import pygame 
 
+mouse = {"left":[False,False],
+        "right":[False,False],
+         "pos":[0,0]}
+
 def init(screen):
     global SCREEN
     SCREEN = screen
+
+def tick():
+    global mouse
+    mouse["left"][1] = mouse["left"][0]
+    mouse["right"][1] = mouse["right"][0]
+
+    mouse["pos"] = list(pygame.mouse.get_pos())
+    presses = pygame.mouse.get_pressed()
+    mouse["left"][0] = presses[0]
+    mouse["right"][0] = presses[1]
 
 class old_textbox:
     '''A more compact way of making a text box.
@@ -12,7 +26,7 @@ class old_textbox:
     backgroundCol --> also a tuple, (redval,greenval,blueval)
     pos  --> a tuple again, (x coord,y coord)'''
 
-    def __init__(self,message,font,pos,textCol=(255,255,255),backgroundCol=(0,0,0),tags=[]):
+    def __init__(self,message,font,pos,textCol=(255,255,255),backgroundCol=(0,0,0),oval=False,tags=[]):
         self.message = message
         self.font = font
         self.textCol = textCol
@@ -22,13 +36,21 @@ class old_textbox:
         self.isShowing = True
         self.tags = tags
         self.wasPressed = False
+        self.oval = oval
+        self.mouse = {}
         
         self.display()
 
+    def get_presses(self):
+        self.mouse = mouse
+
     def display(self):
-        text = self.font.render(str(self.message), True, self.textCol,self.backgroundCol)
+        bg = None if self.oval else self.backgroundCol
+        text = self.font.render(str(self.message), True, self.textCol,bg)
         self.textRect = text.get_rect()
         self.textRect.center = self.pos
+        if self.oval:
+            pygame.draw.ellipse(SCREEN,self.backgroundCol,self.textRect)
         SCREEN.blit(text, self.textRect)
 
     def update_message(self, message='Textbox'):
@@ -54,7 +76,8 @@ class old_textbox:
         except NotImplementedError:
             left, right, up, down = False, False, False, False
 
-        if up and down and left and right and self.isShowing: #and pygame.mouse.get_pressed()[0]:
+        if (up and down and left and right and self.isShowing
+                and self.mouse["left"][0] and not self.mouse["left"][1]):
             if not self.wasPressed:
                 pressed = True
 
@@ -63,6 +86,48 @@ class old_textbox:
             self.wasPressed = False
 
         return (pressed)
+
+class Pressable:
+    def __init__(self,xpos,ypos,width,height):
+        self.xpos = xpos
+        self.ypos = ypos
+        self.width = width
+        self.height = height
+        self.canBePressed = True
+
+        self.wasPressed = False
+        self.rect = [xpos,ypos,width,height]
+
+    def move_to(self, xpos, ypos):
+        self.xpos = xpos
+        self.ypos = ypos
+        self.rect = [xpos, ypos, self.width, self.height]
+
+    def pressed(self):
+        press = False
+        left, right, up, down = False, False, False, False
+
+        try:
+            if pygame.mouse.get_pos()[0] > self.rect[0]:
+                left = True
+            if pygame.mouse.get_pos()[0] < self.rect[0] + self.rect[2]:
+                right = True
+            if pygame.mouse.get_pos()[1] > self.rect[1]:
+                up = True
+            if pygame.mouse.get_pos()[1] < self.rect[1] + self.rect[3]:
+                down = True
+        except NotImplementedError:
+            left, right, up, down = False, False, False, False
+
+        if up and down and left and right: #and pygame.mouse.get_pressed()[0]:
+            if not self.wasPressed:
+                press = True
+
+            self.wasPressed = True
+        else:
+            self.wasPressed = False
+
+        return (press)
     
 class rainbow:
     def __init__(self):
