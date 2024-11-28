@@ -6,6 +6,7 @@ import pygame
 import random 
 import sys  
 import utility as u
+import webbrowser as w
 
 
 SCRW = 800
@@ -21,6 +22,7 @@ u.init(SCREEN)
 clock = pygame.time.Clock()
 pygame.display.set_caption("Platform game!")
 pygame.display.set_icon(pygame.image.load("platform icon.bmp"))
+font10 = pygame.font.SysFont(FONT,FONTSIZEBASE-8)
 font18 = pygame.font.SysFont(FONT,FONTSIZEBASE)
 font28 = pygame.font.SysFont(FONT,FONTSIZEBASE+10)
 font50 = pygame.font.SysFont(FONT,FONTSIZEBASE+32)
@@ -290,6 +292,16 @@ class MiscData:
         self.bombRadius = 150
         self.bombFuse = 1000
         self.bombDamage = 100
+
+        self.lastMessageChange = 0
+        self.messageState = 0
+        self.messages = ["Find me on github! https://github.com/ScootiusMaximus/Platform-engine",
+                         "Add a suggestion! https://forms.gle/JnM4B8yjJY9bBqJ86",
+                         "Report an issue! https://forms.gle/JnM4B8yjJY9bBqJ86"]
+        self.links = ["https://github.com/ScootiusMaximus/Platform-engine",
+                      "https://forms.gle/JnM4B8yjJY9bBqJ86",
+                      "https://forms.gle/JnM4B8yjJY9bBqJ86"]
+
 
 class Chaos:
     def __init__(self):
@@ -2087,12 +2099,13 @@ soundBox = u.old_textbox("Sound",font18,(SCRW//2,100),tags=["settings"])
 highResTexturesBox = u.old_textbox("Fancy Textures",font18,(SCRW*0.6,200),tags=["settings"])
 chaosModeBox = u.old_textbox("Chaos Mode",font18,(SCRW*0.4,200),tags=["settings"],backgroundCol=[100,0,0])
 chaosModifierBox = u.old_textbox("-",font18,(SCRW*0.5,50),tags=["ingame"],backgroundCol=[0,0,0])
+messageBox = u.old_textbox("-",font10,(SCRW*0.5,SCRH-25),tags=["menu"])
 
 linkBox = u.old_textbox("Link mode",font18,(SCRW//2,100),tags=["editor"],backgroundCol=colour.red)
 
 boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,levelsBox,settingsBox,
          showFPSBox,statsTitleBox,collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox,
-         resetStatsBox,annoyingBossesBox,soundBox,highResTexturesBox,chaosModeBox]
+         resetStatsBox,annoyingBossesBox,soundBox,highResTexturesBox,chaosModeBox,messageBox]
 # hard coded textboxes
 
 ##################################################
@@ -2235,7 +2248,7 @@ def reposition_boxes():
     highResTexturesBox.pos = (SCRW*0.6,200)
     chaosModeBox.pos = (SCRW*0.4,200)
     chaosModifierBox.pos = (SCRW*0.5,50)
-
+    messageBox.pos = (SCRW*0.5,SCRH-50)
 
     game.editor.linkRect.move_to(SCRW-100,SCRH-100)
 
@@ -2336,6 +2349,17 @@ def tick_boxes():
 
     if chaosModeBox.isPressed():
         game.settings.chaosMode = not game.settings.chaosMode
+
+    if now() - game.misc.lastMessageChange > 6000:
+        game.misc.messageState += 1
+        if game.misc.messageState > len(game.misc.messages)-1:
+            game.misc.messageState = 0
+        game.misc.lastMessageChange = now()
+
+    messageBox.update_message(game.misc.messages[game.misc.messageState])
+
+    if messageBox.isPressed():
+        w.open(game.misc.links[game.misc.messageState])
 
 def spike_convert(item,orn=0):
     if orn == 0:
