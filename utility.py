@@ -26,7 +26,7 @@ class old_textbox:
     backgroundCol --> also a tuple, (redval,greenval,blueval)
     pos  --> a tuple again, (x coord,y coord)'''
 
-    def __init__(self,message,font,pos,textCol=(255,255,255),backgroundCol=(0,0,0),oval=False,tags=[]):
+    def __init__(self,message,font,pos,textCol=(255,255,255),backgroundCol=(0,0,0),oval=False,tags=[],center=True):
         self.message = message
         self.font = font
         self.textCol = textCol
@@ -37,9 +37,11 @@ class old_textbox:
         self.tags = tags
         self.wasPressed = False
         self.oval = oval
+        self.center = center
         self.mouse = {}
-        
-        self.display()
+
+        text = self.font.render(str(self.message), True, self.textCol, None)
+        self.textRect = text.get_rect()
 
     def get_presses(self):
         self.mouse = mouse
@@ -48,7 +50,10 @@ class old_textbox:
         bg = None if self.oval else self.backgroundCol
         text = self.font.render(str(self.message), True, self.textCol,bg)
         self.textRect = text.get_rect()
-        self.textRect.center = self.pos
+        if self.center:
+            self.textRect.center = self.pos
+        else:
+            self.textRect.topleft = self.pos
         if self.oval:
             pygame.draw.ellipse(SCREEN,self.backgroundCol,self.textRect)
         SCREEN.blit(text, self.textRect)
