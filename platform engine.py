@@ -1,4 +1,5 @@
 import colour
+from copy import deepcopy
 import json
 import math
 import os
@@ -14,6 +15,8 @@ SCRH = 600
 TICKRATE = 60
 FONT = "mvboli"
 FONTSIZEBASE = 18
+
+uptime = 0
 
 pygame.init()
 pygame.mixer.init()
@@ -211,6 +214,7 @@ class Level_slots:
         self.update()
 
     def update(self):
+        self.boxes = []
         for i in range(self.num):
             j = (i%15)
             x = ((j%5)*SCRW//5)+SCRW//10 
@@ -223,6 +227,14 @@ class Level_slots:
 
         for item in self.boxes:
             item.get_presses()
+            item.isShowing = False
+
+        for i in range((self.page-1)*15,self.page*15):
+            try:
+                self.boxes[i].isShowing = True
+            except IndexError:
+                pass
+
         if self.num > 15 and ((math.ceil(self.num/15) != self.page)):
             self.nextBox.isShowing = True
             self.nextBox.display()
@@ -269,6 +281,8 @@ class Stats:
         self.enemiesKilled = 0
         self.playTime = 0
         self.deaths = 0
+        self.hidden1progress = 0
+        self.bossesKilled = 0
 
 class MiscData:
     def __init__(self):
@@ -300,8 +314,7 @@ class MiscData:
                          "Report an issue! https://forms.gle/JnM4B8yjJY9bBqJ86"]
         self.links = ["https://github.com/ScootiusMaximus/Platform-engine",
                       "https://forms.gle/JnM4B8yjJY9bBqJ86",
-                      "https://forms.gle/JnM4B8yjJY9bBqJ86"]
-
+                      "https://forms.gle/7YipdkXidHuV1KzV6"]
 
 class Chaos:
     def __init__(self):
@@ -319,7 +332,93 @@ class Chaos:
 
 class Achievements:
     def __init__(self):
-        pass
+        self.achievements = {
+            "death1":False,
+            "death10":False,
+            "death100":False,
+            "star1":False,
+            "star10":False,
+            "star100":False,
+            "fall1":False,
+            "enemy1":False,
+            "enemy10":False,
+            "enemy100":False,
+            "boss1":False,
+            "hidden1":False,
+            "time1":False,
+            "time10":False,
+            "time100":False,
+            "hidden2":False
+        }
+        self.lastAchievements = {}
+        self.messages = {
+            "death1": ["Ouch","Die for the first time"],
+            "death10": ["Big Ouch","Die 10 times"],
+            "death100": ["Biggest Ouch","Die 100 times"],
+            "star1": ["Shiny","Collect a star"],
+            "star10": ["Shinier","Collect 10 stars"],
+            "star100": ["Collector of Shiny","Collect 100 stars"],
+            "fall1": ["Oops","Fall off the map"],
+            "enemy1": ["Little Red Square","Defeat an enemy"],
+            "enemy10": ["Little Red Squares","Defeat 10 enemies"],
+            "enemy100": ["Many Little Red Squares","Defeat 100 enemies"],
+            "boss1": ["Take That!","Defeat a Boss"],
+            "hidden1": ["Hidden achievement 1","Why would you do that?"],
+            "time1": ["Getting Started","Play for 1 minute"],
+            "time10": ["Getting into it","Play for 10 minutes"],
+            "time100": ["Addicted","Play for 100 minutes"],
+            "hidden2": ["Hidden achievement 2","You must really love this game"]
+        }
+
+class Notification:
+    def __init__(self,title,body,time=5000,font=FONT,size=FONTSIZEBASE):
+        self.width = 200
+        self.height = 40
+        self.xpos = 0
+        self.ypos = SCRH- self.height
+        self.title = title
+        self.body = body
+        self.time = time
+        self.font = font
+        self.birth = 0
+        self.displaying = False
+        self.needsDel = False
+
+        if len(self.title) < 10:
+            titleSize = size+4
+        if len(self.title) < 18:
+            titleSize = size
+        else:
+            titleSize = size-4
+        titleFont = pygame.font.SysFont(self.font,titleSize)
+        titleFont.set_bold(True)
+
+        if len(self.body) < 10:
+            bodySize = size+2
+        if len(self.body) < 18:
+            bodySize = size-2
+        else:
+            bodySize = size-5
+        bodyFont = pygame.font.SysFont(self.font,bodySize)
+        bodyFont.set_bold(True)
+
+        self.titleBox = u.old_textbox(self.title,titleFont,(25,self.ypos),backgroundCol=None,textCol=colour.black,center=False)
+        self.bodyBox = u.old_textbox(self.body,bodyFont,(25,self.ypos+20),backgroundCol=None,textCol=colour.black,center=False)
+
+    def tick(self):
+        life = now() - self.birth
+        if life > self.time:
+            self.needsDel = True
+
+        if life < 250:
+            self.ypos = SCRH-((life/250)*self.height)
+
+        pygame.draw.rect(SCREEN, colour.darkgrey, (self.xpos-3, self.ypos-3, self.width+6, self.height+6))
+        pygame.draw.rect(SCREEN, colour.lightgrey, (self.xpos, self.ypos, self.width, self.height))
+        self.titleBox.pos = (25,self.ypos)
+        self.bodyBox.pos = (25,self.ypos+20)
+        self.titleBox.display()
+        self.bodyBox.display()
 
 class Game:
     def __init__(self):
@@ -336,9 +435,11 @@ class Game:
         self.stats = Stats()
         self.misc = MiscData()
         self.chaos = Chaos()
+        self.achievements = Achievements()
         self.rgb = u.rainbow()
 
         self.clouds = []
+        self.notifications = []
 
         self.UP = [pygame.K_UP,pygame.K_w,pygame.K_SPACE]
         self.LEFT = [pygame.K_a,pygame.K_LEFT]
@@ -379,14 +480,71 @@ class Game:
         self.load()
         self.update_level()
 
-        with open("stats.json","r") as file:
-            info = json.load(file)
-            self.stats.stars = info["stars"]
-            self.stats.enemiesKilled = info["enemiesKilled"]#
-            self.stats.playTime = info["playTime"]
-            self.stats.deaths = info["deaths"]
-
+        self.load_stats()
         self.fix_stats_stars()
+
+    def check_achievements(self,announce=True):
+        self.achievements.lastAchievements = deepcopy(self.achievements.achievements)
+        # since modifying achievements modifies lastAchievements without deepcopy()
+
+        if self.stats.deaths >= 1:
+            self.achievements.achievements["death1"] = True
+        if self.stats.deaths >= 10:
+            self.achievements.achievements["death10"] = True
+        if self.stats.deaths >= 100:
+            self.achievements.achievements["death100"] = True
+
+        starCount = 0
+        for key in self.stats.stars:
+            starCount += len(self.stats.stars[key])
+        if starCount >= 1:
+            self.achievements.achievements["star1"] = True
+        if starCount >= 10:
+            self.achievements.achievements["star10"] = True
+        if starCount >= 100:
+            self.achievements.achievements["star100"] = True
+
+        if self.player.ypos >= 5000 and self.scene == "ingame":
+            self.achievements.achievements["fall1"] = True
+
+        if self.stats.enemiesKilled >= 1:
+            self.achievements.achievements["enemy1"] = True
+        if self.stats.enemiesKilled >= 10:
+            self.achievements.achievements["enemy10"] = True
+        if self.stats.enemiesKilled >= 100:
+            self.achievements.achievements["enemy100"] = True
+
+        if self.stats.bossesKilled >= 1:
+            self.achievements.achievements["boss1"] = True
+
+        if self.stats.hidden1progress >= 100:
+            self.achievements.achievements["hidden1"] = True
+
+        if self.stats.playTime >= 1 * 1000 * 60:
+            self.achievements.achievements["time1"] = True
+        if self.stats.playTime >= 10 * 1000 * 60:
+            self.achievements.achievements["time10"] = True
+        if self.stats.playTime >= 100 * 1000 * 60:
+            self.achievements.achievements["time100"] = True
+        if self.stats.playTime >= 1000 * 1000 * 60:
+            self.achievements.achievements["hidden2"] = True
+
+        if (self.achievements.lastAchievements != self.achievements.achievements
+                and announce):
+            # has got an achievement:
+            for key in self.achievements.achievements:
+                if self.achievements.achievements[key] != self.achievements.lastAchievements[key]:
+                    self.notifications.append(
+                        Notification(self.achievements.messages[key][0],self.achievements.messages[key][1]))
+
+        if not empty(self.notifications):
+            if not self.notifications[0].displaying:
+                self.notifications[0].displaying = True
+                self.notifications[0].birth = now()
+            self.notifications[0].tick()
+            for item in self.notifications:
+                if item.needsDel:
+                    self.notifications.remove(item)
 
     def end(self):
         if self.settings.annoyingBosses:
@@ -578,6 +736,34 @@ class Game:
         with open("levels.json","w") as file:
             file.write(json.dumps(self.data))
 
+    def load_stats(self):
+        with open("stats.json","r") as file:
+            info = json.load(file)
+            self.stats.stars = info["stars"]
+            self.stats.enemiesKilled = info["enemiesKilled"]
+            self.stats.playTime = info["playTime"]
+            self.stats.deaths = info["deaths"]
+            self.stats.hidden1progress = info["hidden1"]
+            self.stats.bossesKilled = info["bossesKilled"]
+
+        for _ in range(2):
+            self.check_achievements(announce=False)
+            # get all the achievements from stats
+            # file loaded without all the notifications
+            # do this twice so self.lastAchievements and
+            # self.achievements are the same
+
+    def save_stats(self):
+        with open("stats.json", "w") as file:
+            info = {}
+            info["stars"] = self.stats.stars
+            info["enemiesKilled"] = self.stats.enemiesKilled
+            info["playTime"] = self.stats.playTime + now()
+            info["deaths"] = self.stats.deaths
+            info["hidden1"] = self.stats.hidden1progress
+            info["bossesKilled"] = self.stats.bossesKilled
+            file.write(json.dumps(info))
+
     def tick_button_platforms(self):
         # correct any links to buttons that dont exist anymore
         for platform in self.disappearingPlatforms:
@@ -677,6 +863,7 @@ class Game:
             self.entities.remove(mob)
         for mob in bToDel:
             self.stats.enemiesKilled += 1
+            self.stats.bossesKilled += 1
             self.bossEntities.remove(mob)
 
     def tick_player(self):
@@ -2077,7 +2264,7 @@ class Transition(Animation):
 ##################################################
 
 
-titleBox = u.old_textbox("PLATFORM ENGINE",fontTitle,(SCRW//2,150),backgroundCol=None,tags=["menu"])
+titleBox = u.old_textbox("PLATFORM GAME",fontTitle,(SCRW//2,150),backgroundCol=None,tags=["menu"])
 startBox = u.old_textbox("PLAY",font28,(SCRW//2,400),oval=True,tags=["menu"])
 menuBox = u.old_textbox("MENU",font18,(SCRW-35,20),oval=True,tags=["ingame","editor","levels","settings","achievements"])
 editorBox = u.old_textbox("EDITOR",font18,(SCRW//2,500),oval=True,tags=["menu"])
@@ -2085,7 +2272,7 @@ levelsBox = u.old_textbox("LEVELS",font18,(SCRW//2,300),oval=True,tags=["menu"])
 selectedBox = u.old_textbox("",font18,(SCRW//2,60),tags=["editor"])
 coordBox = u.old_textbox("",font18,(SCRW//3,20),tags=["editor"])
 levelIDXBox = u.old_textbox("",font18,(SCRW//2,20),tags=["ingame","editor"])
-settingsBox = u.old_textbox("SETTINGS",font18,(SCRW//1.3,500),oval=True,tags=["menu"])
+settingsBox = u.old_textbox("SETTINGS",font18,(SCRW*0.7,500),oval=True,tags=["menu"])
 showFPSBox = u.old_textbox("Show FPS",font18,(SCRW//2,50),tags=["settings"])
 FPSBox = u.old_textbox("FPS: -",font18,(SCRW-50,SCRH-50),tags=["ingame","editor","settings"])
 statsTitleBox = u.old_textbox("Statistics",font28,(SCRW//2,300),tags=["settings"])
@@ -2100,12 +2287,15 @@ highResTexturesBox = u.old_textbox("Fancy Textures",font18,(SCRW*0.6,200),tags=[
 chaosModeBox = u.old_textbox("Chaos Mode",font18,(SCRW*0.4,200),tags=["settings"],backgroundCol=[100,0,0])
 chaosModifierBox = u.old_textbox("-",font18,(SCRW*0.5,50),tags=["ingame"],backgroundCol=[0,0,0])
 messageBox = u.old_textbox("-",font10,(SCRW*0.5,SCRH-25),tags=["menu"])
+achievementBox = u.old_textbox("ACHIEVEMENTS",font18,(SCRW*0.3,500),oval=True,tags=["menu"])
+achievementTitleBox = u.old_textbox("ACHIEVEMENTS",fontTitle,(SCRW//2,50),backgroundCol=None,tags=["achievements"])
 
 linkBox = u.old_textbox("Link mode",font18,(SCRW//2,100),tags=["editor"],backgroundCol=colour.red)
 
 boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,levelsBox,settingsBox,
          showFPSBox,statsTitleBox,collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox,
-         resetStatsBox,annoyingBossesBox,soundBox,highResTexturesBox,chaosModeBox,messageBox]
+         resetStatsBox,annoyingBossesBox,soundBox,highResTexturesBox,chaosModeBox,messageBox,
+         achievementBox,achievementTitleBox]
 # hard coded textboxes
 
 ##################################################
@@ -2117,6 +2307,9 @@ def bind(minim,val,maxim):
         return minim
     else:
         return val
+
+def empty(alist):
+    return len(alist)==0
 
 def make_position_modifier(min,max):
     posMod = [random.randint(min, max) * 50,
@@ -2297,6 +2490,9 @@ def tick_boxes():
         else:
             chaosModifierBox.isShowing = False
 
+    if titleBox.isPressed():
+        game.stats.hidden1progress += 1
+
     if startBox.isPressed():
         game.scene = "ingame"
         game.init_clouds()
@@ -2318,6 +2514,7 @@ def tick_boxes():
 
     if levelsBox.isPressed():
         game.scene = "levels"
+        levelSlots.update()
         game.init_clouds()
 
     if settingsBox.isPressed():
@@ -2330,8 +2527,13 @@ def tick_boxes():
         game.stats.stars = {}
         game.stats.enemiesKilled = 0
         game.stats.deaths = 0
+        game.stats.hidden1progress = 0
         #game.stats.playTime = 0
         game.fix_stats_stars()
+        for key in game.achievements.achievements:
+            game.achievements.achievements[key] = False
+        for _ in range(2):
+            game.check_achievements(announce=False)
 
     if annoyingBossesBox.isPressed():
         game.settings.annoyingBosses = not game.settings.annoyingBosses
@@ -2361,6 +2563,9 @@ def tick_boxes():
     if messageBox.isPressed():
         w.open(game.misc.links[game.misc.messageState])
 
+    if achievementBox.isPressed():
+        game.scene = "achievements"
+
 def spike_convert(item,orn=0):
     if orn == 0:
         return [item[0] + 5, item[1] - 30, 40, 30]
@@ -2375,20 +2580,13 @@ def spike_convert(item,orn=0):
     #return [item[0],item[1],40,30]
 
 def go_quit():
-    with open("stats.json","w") as file:
-        info = {}
-        info["stars"] = game.stats.stars
-        info["enemiesKilled"] = game.stats.enemiesKilled
-        info["playTime"] = game.stats.playTime + now()
-        info["deaths"] = game.stats.deaths
-        file.write(json.dumps(info))
-
+    game.save_stats()
     pygame.mixer.quit()
     pygame.quit()
     sys.exit()
 
 def now():
-    return pygame.time.get_ticks()
+    return uptime#pygame.time.get_ticks()
 
 def handle_events(move):
     global SCRW,SCRH
@@ -2451,8 +2649,11 @@ SCREEN.fill(colour.black)
 
 
 while True:
+    uptime = pygame.time.get_ticks()
     u.tick()
     tick_boxes()
+    game.check_achievements()
+
     pygame.display.flip()
     SCREEN.fill((200,200,250))
     clock.tick(TICKRATE)
