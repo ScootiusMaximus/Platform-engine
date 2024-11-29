@@ -214,6 +214,8 @@ class Level_slots:
         self.update()
 
     def update(self):
+        self.nextBox = u.old_textbox(" > ", font50, (SCRW - 50, SCRH - 50))
+        self.prevBox = u.old_textbox(" < ", font50, (50, SCRH - 50))
         self.boxes = []
         for i in range(self.num):
             j = (i%15)
@@ -369,6 +371,31 @@ class Achievements:
             "time100": ["Addicted","Play for 100 minutes"],
             "hidden2": ["Hidden achievement 2","You must really love this game"]
         }
+        self.slots = []
+
+        self.update_slots()
+
+    def update_slots(self):
+        self.slots = []
+        y = 100
+        x = 50
+        for key in self.achievements:
+            col = (255,0,0) if not self.achievements[key] else (0,255,0)
+            self.slots.append(u.old_textbox(
+                f"{self.messages[key][0]}: {self.messages[key][1]}",
+                pygame.font.SysFont(FONT,FONTSIZEBASE-3),
+                (x, y),
+                backgroundCol=col,center=False))
+            y += 40
+            if y > SCRH-40:
+                y = 100
+                x = SCRW//2
+
+    def show(self):
+        for item in self.slots:
+            item.isShowing = True
+            item.display()
+            item.isShowing = False
 
 class Notification:
     def __init__(self,title,body,time=5000,font=FONT,size=FONTSIZEBASE):
@@ -479,9 +506,9 @@ class Game:
 
         self.load()
         self.update_level()
-
         self.load_stats()
         self.fix_stats_stars()
+        self.achievements.update_slots()
 
     def check_achievements(self,announce=True):
         self.achievements.lastAchievements = deepcopy(self.achievements.achievements)
@@ -2418,6 +2445,9 @@ def toRect(alist=[0,0,0,0]):
     return  rect
 
 def reposition_boxes():
+    levelSlots.update()
+    game.achievements.update_slots()
+
     titleBox.pos = (SCRW//2,200)
     startBox.pos = (SCRW//2,400)
     menuBox.pos = (SCRW-35,20)
@@ -2442,6 +2472,8 @@ def reposition_boxes():
     chaosModeBox.pos = (SCRW*0.4,200)
     chaosModifierBox.pos = (SCRW*0.5,50)
     messageBox.pos = (SCRW*0.5,SCRH-50)
+    achievementBox.pos = (SCRW*0.3,500)
+    achievementTitleBox.pos = (SCRW//2,50)
 
     game.editor.linkRect.move_to(SCRW-100,SCRH-100)
 
@@ -2528,6 +2560,7 @@ def tick_boxes():
         game.stats.enemiesKilled = 0
         game.stats.deaths = 0
         game.stats.hidden1progress = 0
+        game.stats.bossesKilled = 0
         #game.stats.playTime = 0
         game.fix_stats_stars()
         for key in game.achievements.achievements:
@@ -2765,3 +2798,7 @@ while True:
 
         if game.settings.chaosMode:
             SCREEN.blit(img.image["tick"],(chaosModeBox.pos[0] + chaosModeBox.textRect[2] / 2, chaosModeBox.pos[1] - th))
+
+    elif game.scene == "achievements":
+        game.achievements.update_slots()
+        game.achievements.show()
