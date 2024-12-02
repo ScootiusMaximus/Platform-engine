@@ -218,9 +218,10 @@ class Level_slots:
         self.prevBox = u.old_textbox(" < ", font50, (50, SCRH - 50))
         self.boxes = []
         for i in range(self.num):
-            j = (i%15)
+            j = (i%10)
             x = ((j%5)*SCRW//5)+SCRW//10 
-            y = ((j//5)*SCRH//4)+SCRH//8
+            y = ((j//5)*SCRH//2)+SCRH//4
+            #print(f"num {i+1} pos ({x}, {y})")
             self.boxes.append(u.old_textbox(" "+str(i+1)+" ",font50,(x,y)))
 
     def tick(self):
@@ -231,18 +232,18 @@ class Level_slots:
             item.get_presses()
             item.isShowing = False
 
-        for i in range((self.page-1)*15,self.page*15):
+        for i in range((self.page-1)*10,self.page*10):
             try:
                 self.boxes[i].isShowing = True
             except IndexError:
                 pass
 
-        if self.num > 15 and ((math.ceil(self.num/15) != self.page)):
+        if self.num > 10 and ((math.ceil(self.num/10) != self.page)):
             self.nextBox.isShowing = True
             self.nextBox.display()
         else:
             self.nextBox.isShowing = False
-        if self.num > 15 and self.page != 1:
+        if self.num > 10 and self.page != 1:
             self.prevBox.isShowing = True
             self.prevBox.display()
         else:
@@ -254,7 +255,7 @@ class Level_slots:
         if self.prevBox.isPressed():
             self.page -= 1
 
-        idxRange = [(self.page-1)*15,self.page*15]
+        idxRange = [(self.page-1)*10,self.page*10]
         #print(idxRange)
         for i in range(idxRange[0],idxRange[1]):
             try:
