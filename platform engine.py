@@ -12,7 +12,7 @@ import webbrowser as w
 
 SCRW = 800
 SCRH = 600
-TICKRATE = 60
+TICKRATE = 20
 FONT = "mvboli"
 FONTSIZEBASE = 18
 
@@ -282,6 +282,7 @@ class Stats:
     def __init__(self):
         self.stars = []
         self.enemiesKilled = 0
+        self.startTime = 0
         self.playTime = 0
         self.deaths = 0
         self.hidden1progress = 0
@@ -511,7 +512,7 @@ class Game:
         self.fix_stats_stars()
         self.achievements.update_slots()
 
-    def check_achievements(self,announce=True):
+    def check_achievements(self,announce=False):
         self.achievements.lastAchievements = deepcopy(self.achievements.achievements)
         # since modifying achievements modifies lastAchievements without deepcopy()
 
@@ -557,11 +558,12 @@ class Game:
         if self.stats.playTime >= 1000 * 1000 * 60:
             self.achievements.achievements["hidden2"] = True
 
-        if (self.achievements.lastAchievements != self.achievements.achievements
+        if ((self.achievements.lastAchievements != self.achievements.achievements)
                 and announce):
             # has got an achievement:
             for key in self.achievements.achievements:
                 if self.achievements.achievements[key] != self.achievements.lastAchievements[key]:
+                    #print("announcing")
                     self.notifications.append(
                         Notification(self.achievements.messages[key][0],self.achievements.messages[key][1]))
 
@@ -769,12 +771,13 @@ class Game:
             info = json.load(file)
             self.stats.stars = info["stars"]
             self.stats.enemiesKilled = info["enemiesKilled"]
-            self.stats.playTime = info["playTime"]
+            self.stats.startTime = info["playTime"]
+            self.stats.playTime = self.stats.startTime
             self.stats.deaths = info["deaths"]
             self.stats.hidden1progress = info["hidden1"]
             self.stats.bossesKilled = info["bossesKilled"]
 
-        for _ in range(2):
+        for _ in range(3):
             self.check_achievements(announce=False)
             # get all the achievements from stats
             # file loaded without all the notifications
@@ -786,7 +789,7 @@ class Game:
             info = {}
             info["stars"] = self.stats.stars
             info["enemiesKilled"] = self.stats.enemiesKilled
-            info["playTime"] = self.stats.playTime + now()
+            info["playTime"] = self.stats.playTime
             info["deaths"] = self.stats.deaths
             info["hidden1"] = self.stats.hidden1progress
             info["bossesKilled"] = self.stats.bossesKilled
@@ -899,7 +902,7 @@ class Game:
         self.player.lastIsDead = self.player.isDead
         self.player.lastYvel = self.player.yvel
 
-        if self.player.yvel > 5:
+        if self.player.yvel > 5 and game.sound.enabled:
             self.sound.start_fall()
         else:
             self.sound.end_fall()
@@ -948,6 +951,8 @@ class Game:
                 if self.sound.enabled: self.sound.start_jump()
             if self.player.wallData[2] and self.player.wallData[1]:
                 self.player.xvel = 0
+            if self.player.wallData[3]:
+                self.yvel = 0
 
         self.player.xpos += self.player.xvel
         self.player.ypos += self.player.yvel
@@ -991,91 +996,81 @@ class Game:
             self.enableMovement = True
 
         self.player.wallData = [False,False,False,False,False]
+        self.player.hitbox.clear()
         for mob in self.entities:
             mob.wallData = [False,False,False,False,False]
+            mob.hitbox.clear()
         for mob in self.bossEntities:
             mob.wallData = [False,False,False,False,False]
+            mob.hitbox.clear()
 
 
         for item in self.platforms:
             compItem = toRect(get_actual_pos(item))
-            if pygame.Rect.colliderect(self.player.hitbox.actBottom,compItem):
-                self.player.wallData[0] = True
-            if pygame.Rect.colliderect(self.player.hitbox.actLeft,compItem):
-                self.player.wallData[1] = True
-            if pygame.Rect.colliderect(self.player.hitbox.actRight,compItem):
-                self.player.wallData[2] = True
-            if pygame.Rect.colliderect(self.player.hitbox.actTop,compItem):
-                self.player.wallData[3] = True
-            if pygame.Rect.colliderect(self.player.hitbox.actWhole,compItem):
-                self.player.wallData[4] = True
-
-            for which in [self.bossEntities, self.entities]:
+            for which in [self.bossEntities, self.entities, [self.player]]:
                 for mob in which:
                     if pygame.Rect.colliderect(mob.hitbox.actBottom,compItem):
                         mob.wallData[0] = True
+                        mob.hitbox.collideBottom = item
+                        #print("yup")
                     if pygame.Rect.colliderect(mob.hitbox.actLeft,compItem):
                         mob.wallData[1] = True
+                        mob.hitbox.collideLeft = item
                     if pygame.Rect.colliderect(mob.hitbox.actRight,compItem):
                         mob.wallData[2] = True
+                        mob.hitbox.collideRight = item
                     if pygame.Rect.colliderect(mob.hitbox.actTop,compItem):
                         mob.wallData[3] = True
+                        mob.hitbox.collideTop = item
                     if pygame.Rect.colliderect(mob.hitbox.actWhole,compItem):
                         mob.wallData[4] = True
+                        mob.hitbox.collideWhole = item
 
         for i in range(len(self.disappearingPlatforms)):
-            compItem = toRect(get_actual_pos(self.disappearingPlatforms[i]))
+            plat = self.disappearingPlatforms[i]
+            compItem = toRect(get_actual_pos(plat))
             if not self.buttonPresses[self.disappearingPlatformLinks[i]]:
-                if pygame.Rect.colliderect(self.player.hitbox.actBottom, compItem):
-                    self.player.wallData[0] = True
-                if pygame.Rect.colliderect(self.player.hitbox.actLeft, compItem):
-                    self.player.wallData[1] = True
-                if pygame.Rect.colliderect(self.player.hitbox.actRight, compItem):
-                    self.player.wallData[2] = True
-                if pygame.Rect.colliderect(self.player.hitbox.actTop, compItem):
-                    self.player.wallData[3] = True
-                if pygame.Rect.colliderect(self.player.hitbox.actWhole, compItem):
-                    self.player.wallData[4] = True
-
-                for which in [self.bossEntities, self.entities]:
+                for which in [self.bossEntities, self.entities, [self.player]]:
                     for mob in which:
                         if pygame.Rect.colliderect(mob.hitbox.actBottom, compItem):
                             mob.wallData[0] = True
+                            mob.hitbox.collideBottom = plat
+                            # print("yup")
                         if pygame.Rect.colliderect(mob.hitbox.actLeft, compItem):
                             mob.wallData[1] = True
+                            mob.hitbox.collideLeft = plat
                         if pygame.Rect.colliderect(mob.hitbox.actRight, compItem):
                             mob.wallData[2] = True
+                            mob.hitbox.collideRight = plat
                         if pygame.Rect.colliderect(mob.hitbox.actTop, compItem):
                             mob.wallData[3] = True
+                            mob.hitbox.collideTop = plat
                         if pygame.Rect.colliderect(mob.hitbox.actWhole, compItem):
                             mob.wallData[4] = True
+                            mob.hitbox.collideWhole = plat
 
         for i in range(len(self.appearingPlatforms)):
-            compItem = toRect(get_actual_pos(self.appearingPlatforms[i]))
+            plat = self.appearingPlatforms[i]
+            compItem = toRect(get_actual_pos(plat))
             if self.buttonPresses[self.appearingPlatformLinks[i]]:
-                if pygame.Rect.colliderect(self.player.hitbox.actBottom, compItem):
-                    self.player.wallData[0] = True
-                if pygame.Rect.colliderect(self.player.hitbox.actLeft, compItem):
-                    self.player.wallData[1] = True
-                if pygame.Rect.colliderect(self.player.hitbox.actRight, compItem):
-                    self.player.wallData[2] = True
-                if pygame.Rect.colliderect(self.player.hitbox.actTop, compItem):
-                    self.player.wallData[3] = True
-                if pygame.Rect.colliderect(self.player.hitbox.actWhole, compItem):
-                    self.player.wallData[4] = True
-
-                for which in [self.bossEntities, self.entities]:
+                for which in [self.bossEntities, self.entities, [self.player]]:
                     for mob in which:
                         if pygame.Rect.colliderect(mob.hitbox.actBottom, compItem):
                             mob.wallData[0] = True
+                            mob.hitbox.collideBottom = plat
+                            # print("yup")
                         if pygame.Rect.colliderect(mob.hitbox.actLeft, compItem):
                             mob.wallData[1] = True
+                            mob.hitbox.collideLeft = plat
                         if pygame.Rect.colliderect(mob.hitbox.actRight, compItem):
                             mob.wallData[2] = True
+                            mob.hitbox.collideRight = plat
                         if pygame.Rect.colliderect(mob.hitbox.actTop, compItem):
                             mob.wallData[3] = True
+                            mob.hitbox.collideTop = plat
                         if pygame.Rect.colliderect(mob.hitbox.actWhole, compItem):
                             mob.wallData[4] = True
+                            mob.hitbox.collideWhole = plat
 
         for item in self.spikes:
             orn = self.spikeDir[self.spikes.index(item)]
@@ -1107,14 +1102,14 @@ class Game:
                     self.stats.stars[str(self.levelIDX)].append(item)
                     self.animations.append(Star_Particle(item[0],item[1],colour.yellow))
 
-        for which in [self.fanBases,self.fanColumns]:
+        for which in [self.fanColumns]:
             for item in which:
                 newItem = [item[0],item[1],50,50]
                 if pygame.Rect.colliderect(self.player.hitbox.actWhole,toRect(get_actual_pos(newItem))):
-                    if self.player.yvel > -10:
+                    if self.player.yvel >= -10:
                         self.player.yvel -= 0.5 + self.player.gravity
-                    if self.player.wallData[0]:
-                        self.player.yvel = -1
+                    #if self.player.wallData[0]:
+                    #    self.player.yvel = -1
 ##                    self.player.ypos -= 10
                     break
 
@@ -1148,36 +1143,41 @@ class Game:
             item.tick()
             item.draw()
 
-    def correct_player(self):
+    def correct_mobs(self):
+        # bottom left right top whole
         if self.player.wallData[3] and self.player.yvel > 0:  # if clipping through ground
-            self.player.ypos -= 50
+            #self.player.ypos -= 50
             self.player.yvel = 0
 
-        if self.player.wallData[4] and self.player.yvel == 0:
-            self.player.ypos = ((self.player.ypos // 50) * 50) + 31
+        if self.player.wallData[0] and self.player.yvel == 0:
+            #self.player.ypos = ((self.player.ypos // 50) * 50) + 31
+            #print(self.player.hitbox.collideWhole)
+            self.player.ypos = self.player.hitbox.collideBottom[1] - self.player.height//2 +1
+            # the top of the platform it is colliding with
             self.player.onFloor = True
             #self.player.ypos
             if self.player.lastYvel != 0: # if just landed
                 self.animations.append(Impact_Particle(self.player.xpos,self.player.ypos+14,colour.darkgrey))
 
+        if self.player.wallData[3] and self.player.yvel < 0:# and not self.player.wallData[0]: # top only
+            self.player.wallData[1] = False
+            self.player.wallData[2] = False # stop wall jumping
+            self.player.yvel = 0
+            self.player.ypos = (self.player.hitbox.collideTop[1] +
+                                self.player.hitbox.collideTop[3] + (self.player.height//2))
+
         for enemy in self.entities:
             if enemy.wallData[0] and enemy.yvel == 0:
-                enemy.ypos = ((enemy.ypos // 50) * 50) + 21
+                enemy.ypos = enemy.hitbox.collideBottom[1] - enemy.height//2 -9
                 if enemy.lastYvel != 0:
                     self.animations.append(Impact_Particle(enemy.xpos,enemy.ypos+14,colour.darkgrey))
                     #print(f"last:{enemy.lastYvel} now {enemy.yvel}")
 
         for enemy in self.bossEntities:
-            if enemy.wallData[0] and enemy.yvel == 0:
-                enemy.ypos = ((enemy.ypos // 50) * 50) + 4
+            if enemy.wallData[0]:# and enemy.yvel == 0:
+                enemy.ypos = enemy.hitbox.collideBottom[1] +1
                 if enemy.lastYvel != 0:
                     self.animations.append(Impact_Particle(enemy.xpos,enemy.ypos+10,colour.darkgrey))
-
-        if self.player.wallData[3] and self.player.yvel < 0:# and not self.player.wallData[0]: # top only
-            self.player.wallData[1] = False
-            self.player.wallData[2] = False # stop wall jumping
-            self.player.yvel = -1
-            self.player.ypos += 21
 
         #print(f"player ypos: {self.player.ypos}, yvel: {self.player.yvel}")
 
@@ -1694,31 +1694,56 @@ class Editor:
             self.originalItemRects.append((10,y+5,50,50))
             self.itemRects.append((10, y + 5, 50, 50))
 
-class Mob_Hitbox():
+class Mob_Hitbox:
     def __init__(self):
         self.whole = pygame.Rect([0,0,0,0])
         self.top = pygame.Rect([0,0,0,0])
         self.bottom = pygame.Rect([0,0,0,0])
         self.left = pygame.Rect([0,0,0,0])
         self.right = pygame.Rect([0,0,0,0])
+
         self.actWhole = pygame.Rect([0,0,0,0])
         self.actTop = pygame.Rect([0,0,0,0])
         self.actBottom = pygame.Rect([0,0,0,0])
         self.actLeft = pygame.Rect([0,0,0,0])
         self.actRight = pygame.Rect([0,0,0,0])
 
-class Player:
-    def __init__(self,gravity,maxXvel=10,maxYvel=30,img=None):
-        self.xpos = 0
-        self.ypos = 0
+        self.collideWhole = None
+        self.collideTop = None
+        self.collideBottom = None
+        self.collideLeft = None
+        self.collideRight = None
+
+    def clear(self):
+        self.collideWhole = None
+        self.collideTop = None
+        self.collideBottom = None
+        self.collideLeft = None
+        self.collideRight = None
+
+class Physics_Object:
+    def __init__(self,xpos,ypos,gravity=0.981,maxXvel=10,maxYvel=30):
+        self.xpos = xpos
+        self.ypos = ypos
+        self.gravity = gravity
+        self.maxXvel = maxXvel
+        self.maxYvel = maxYvel
         self.xvel = 0
         self.yvel = 0
+
+class Player(Physics_Object):
+    def __init__(self,gravity,maxXvel=10,maxYvel=30,img=None):
+        super().__init__(0,0,gravity,maxXvel,maxYvel)
+        #self.xpos = 0
+        #self.ypos = 0
+        #self.xvel = 0
+        #self.yvel = 0
         self.lastYvel = 0
-        self.maxYvel = maxYvel
-        self.maxXvel = maxXvel
+        #self.maxYvel = maxYvel
+        #self.maxXvel = maxXvel
         self.img = img
         self.xInc = 1
-        self.gravity = gravity
+        #self.gravity = gravity
         self.isDead = False
         self.lastIsDead = False
         self.atFinish = False
@@ -1830,18 +1855,19 @@ class Player:
         self.width = self.img.get_width()
         self.height = self.img.get_height()
 
-class Enemy:
+class Enemy(Physics_Object):
     def __init__(self,xpos,ypos,maxXvel=5,maxYvel=30,gravity=0.981,img=None):
-        self.xpos = xpos
-        self.ypos = ypos
+        super().__init__(xpos,ypos,gravity,maxXvel,maxYvel)
+        #self.xpos = xpos
+        #self.ypos = ypos
         self.center = [self.xpos,self.ypos]
-        self.xvel = 0
-        self.yvel = 0
+        #self.xvel = 0
+        #self.yvel = 0
         self.lastYvel = 0
         self.xInc = 1
-        self.maxXvel = maxXvel
-        self.maxYvel = maxYvel
-        self.gravity = gravity
+        #self.maxXvel = maxXvel
+        #self.maxYvel = maxYvel
+        #self.gravity = gravity
         self.target = [0,0]
         self.maxTargetDist = 500
         self.canSeeTarget = False
@@ -2686,7 +2712,8 @@ while True:
     uptime = pygame.time.get_ticks()
     u.tick()
     tick_boxes()
-    game.check_achievements()
+    game.check_achievements(announce=True)
+    game.stats.playTime = game.stats.startTime + now()
 
     pygame.display.flip()
     SCREEN.fill((200,200,250))
@@ -2703,9 +2730,8 @@ while True:
         game.draw_bg()
         game.tick_enemies()
         game.tick()
-        game.correct_player() # temp
+        game.correct_mobs()
         game.tick_player()
-        #game.correct_player()
         game.player.update_hitboxes()
         if game.enableMovement:
             game.player.draw()
@@ -2729,6 +2755,7 @@ while True:
 #        sendToCam(list(game.player.hitbox.right),"hitbox",col=colour.white)
 #        sendToCam(list(game.player.hitbox.top),"hitbox",col=colour.white)
 #        sendToCam(list(game.player.hitbox.whole),"hitbox",col=colour.white)
+
         if game.chaos.actions[game.chaos.action] == "invert screen":
             invt = pygame.transform.flip(SCREEN,flip_x=True,flip_y=True)
             SCREEN.blit(invt,(0,0))
@@ -2772,7 +2799,7 @@ while True:
         for key in game.stats.stars:
             starCount += len(game.stats.stars[key])
 
-        ms = (game.stats.playTime + now())
+        ms = (game.stats.playTime)# + now())
         secs = (ms // 1000) % 60
         mins = (ms // (1000*60)) % 60
         hours = (ms // (1000*60*60)) % 60
