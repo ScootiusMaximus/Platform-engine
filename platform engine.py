@@ -730,6 +730,7 @@ class Game:
             pygame.draw.rect(SCREEN,drawCol,(0,i*(SCRH/step),SCRW,step))
 
     def trigger_death(self):
+        print("death triggered")
         self.animations.append(Death_Particle(self.player.xpos,self.player.ypos+14,self.player.colour))
         self.enableMovement = False
         self.stats.deaths += 1
@@ -740,6 +741,7 @@ class Game:
         #if not self.contains_animation("death"):
 
     def reset_player(self):
+        print("player reset")
         self.player.xpos,self.player.ypos = self.spawnPoint[0]+20,self.spawnPoint[1]+20
         self.update_level(next=False) # lazy, only need to change entity positions
         self.player.wallData = [False,False,False,False,False]
@@ -1180,6 +1182,7 @@ class Game:
         #print(f"player ypos: {self.player.ypos}, yvel: {self.player.yvel}")
 
     def update_level(self,next=False):
+        print("level updated")
         if next:
             self.levelIDX += 1
 
@@ -2342,13 +2345,16 @@ messageBox = u.old_textbox("-",font10,(SCRW*0.5,SCRH-25),tags=["menu"])
 achievementBox = u.old_textbox("ACHIEVEMENTS",font18,(SCRW*0.3,500),oval=True,tags=["menu"])
 achievementTitleBox = u.old_textbox("ACHIEVEMENTS",fontTitle,(SCRW//2,50),backgroundCol=None,tags=["achievements"])
 creditsBox = u.old_textbox("Credits",font18,(SCRW*0.3,400),oval=True,tags=["menu"])
-creditsTitleBox = u.old_textbox("CREDITS",fontTitle,(SCRW//2,50),backgroundCol=None,tags=["credits"])
+creditsTitleBox = u.old_textbox("CREDITS",fontTitle,(SCRW//2,100),backgroundCol=None,tags=["credits"])
 credits1 = u.old_textbox("Developer: Scott Wilson",font18,(SCRW*0.5,200),tags=["credits"],backgroundCol=None)
-credits2 = u.old_textbox("Idea suggested by: Freya Ingle",font18,(SCRW*0.5,230),tags=["credits"],backgroundCol=None)
+credits2 = u.old_textbox("Idea by: Freya Ingle",font18,(SCRW*0.5,230),tags=["credits"],backgroundCol=None)
 credits3 = u.old_textbox("Level design by: Scott Wilson",font18,(SCRW*0.5,260),tags=["credits"],backgroundCol=None)
 credits4 = u.old_textbox("Level 15 design: ",font18,(SCRW*0.5,290),tags=["credits"],backgroundCol=None)
 credits5 = u.old_textbox("Music by: Scott Wilson",font18,(SCRW*0.5,320),tags=["credits"],backgroundCol=None)
-credits6 = u.old_textbox("Game testers: ",font18,(SCRW*0.5,350),tags=["credits"],backgroundCol=None)
+credits6 = u.old_textbox("Artwork by: Scott Wilson",font18,(SCRW*0.5,350),tags=["credits"],backgroundCol=None)
+credits7 = u.old_textbox("Thank you to Game testers: ",font18,(SCRW*0.5,400),tags=["credits"],backgroundCol=None)
+credits8 = u.old_textbox("Billy Baldwin, Prithvi, Robert Harvey, Esther Walden :D",font18,(SCRW*0.5,430),tags=["credits"],backgroundCol=None)
+credits9 = u.old_textbox("Josephine Baker, Carolyn Kuang, J Pilphott",font18,(SCRW*0.5,450),tags=["credits"],backgroundCol=None)
 
 linkBox = u.old_textbox("Link mode",font18,(SCRW//2,100),tags=["editor"],backgroundCol=colour.red)
 
@@ -2356,7 +2362,7 @@ boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,le
          showFPSBox,statsTitleBox,collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox,
          resetStatsBox,annoyingBossesBox,soundBox,highResTexturesBox,chaosModeBox,messageBox,
          achievementBox,achievementTitleBox,creditsTitleBox,creditsBox,credits1,credits2,credits3,
-         credits4,credits5,credits6]
+         credits4,credits5,credits6,credits7,credits8,credits9]
 # hard coded textboxes
 
 ##################################################
@@ -2509,7 +2515,16 @@ def reposition_boxes():
     achievementBox.pos = (SCRW*0.3,500)
     achievementTitleBox.pos = (SCRW//2,50)
     creditsBox.pos = (SCRW * 0.3, 400)
-    creditsTitleBox.pos = (SCRW//2,50)
+    creditsTitleBox.pos = (SCRW//2,100)
+    credits1.pos = (SCRW*0.5,200)
+    credits2.pos = (SCRW*0.5,230)
+    credits3.pos = (SCRW*0.5,260)
+    credits4.pos = (SCRW*0.5,290)
+    credits5.pos = (SCRW*0.5,320)
+    credits6.pos = (SCRW*0.5,350)
+    credits7.pos = (SCRW*0.5,400)
+    credits8.pos = (SCRW*0.5,430)
+    credits9.pos = (SCRW*0.5,450)
 
     game.editor.linkRect.move_to(SCRW-100,SCRH-100)
 
