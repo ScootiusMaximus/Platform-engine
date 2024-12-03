@@ -2349,7 +2349,7 @@ creditsTitleBox = u.old_textbox("CREDITS",fontTitle,(SCRW//2,100),backgroundCol=
 credits1 = u.old_textbox("Developer: Scott Wilson",font18,(SCRW*0.5,200),tags=["credits"],backgroundCol=None)
 credits2 = u.old_textbox("Idea by: Freya Ingle",font18,(SCRW*0.5,230),tags=["credits"],backgroundCol=None)
 credits3 = u.old_textbox("Level design by: Scott Wilson",font18,(SCRW*0.5,260),tags=["credits"],backgroundCol=None)
-credits4 = u.old_textbox("Level 15 design: ",font18,(SCRW*0.5,290),tags=["credits"],backgroundCol=None)
+credits4 = u.old_textbox("Level 15 design: J Pilphott",font18,(SCRW*0.5,290),tags=["credits"],backgroundCol=None)
 credits5 = u.old_textbox("Music by: Scott Wilson",font18,(SCRW*0.5,320),tags=["credits"],backgroundCol=None)
 credits6 = u.old_textbox("Artwork by: Scott Wilson",font18,(SCRW*0.5,350),tags=["credits"],backgroundCol=None)
 credits7 = u.old_textbox("Thank you to Game testers: ",font18,(SCRW*0.5,400),tags=["credits"],backgroundCol=None)
