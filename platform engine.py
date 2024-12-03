@@ -12,7 +12,7 @@ import webbrowser as w
 
 SCRW = 800
 SCRH = 600
-TICKRATE = 20
+TICKRATE = 60
 FONT = "mvboli"
 FONTSIZEBASE = 18
 
@@ -137,8 +137,6 @@ class Dummy_Images:
         pygame.draw.rect(self.image["button_unpressed"], (0, 0, 0), (5, 36, 40, 14))
         pygame.draw.rect(self.image["button_pressed"], (0, 0, 0), (5, 36, 40, 14))
         pygame.draw.rect(self.image["button_unpressed"], (255, 0, 0), (10, 29, 30, 7))
-
-
 
     def blank(self,x=50,y=50):
         return pygame.surface.Surface((x,y))
@@ -2320,7 +2318,7 @@ class Transition(Animation):
 
 titleBox = u.old_textbox("PLATFORM GAME",fontTitle,(SCRW//2,150),backgroundCol=None,tags=["menu"])
 startBox = u.old_textbox("PLAY",font28,(SCRW//2,400),oval=True,tags=["menu"])
-menuBox = u.old_textbox("MENU",font18,(SCRW-35,20),oval=True,tags=["ingame","editor","levels","settings","achievements"])
+menuBox = u.old_textbox("MENU",font18,(SCRW-35,20),oval=True,tags=["ingame","editor","levels","settings","achievements","credits"])
 editorBox = u.old_textbox("EDITOR",font18,(SCRW//2,500),oval=True,tags=["menu"])
 levelsBox = u.old_textbox("LEVELS",font18,(SCRW//2,300),oval=True,tags=["menu"])
 selectedBox = u.old_textbox("",font18,(SCRW//2,60),tags=["editor"])
@@ -2343,13 +2341,22 @@ chaosModifierBox = u.old_textbox("-",font18,(SCRW*0.5,50),tags=["ingame"],backgr
 messageBox = u.old_textbox("-",font10,(SCRW*0.5,SCRH-25),tags=["menu"])
 achievementBox = u.old_textbox("ACHIEVEMENTS",font18,(SCRW*0.3,500),oval=True,tags=["menu"])
 achievementTitleBox = u.old_textbox("ACHIEVEMENTS",fontTitle,(SCRW//2,50),backgroundCol=None,tags=["achievements"])
+creditsBox = u.old_textbox("Credits",font18,(SCRW*0.3,400),oval=True,tags=["menu"])
+creditsTitleBox = u.old_textbox("CREDITS",fontTitle,(SCRW//2,50),backgroundCol=None,tags=["credits"])
+credits1 = u.old_textbox("Developer: Scott Wilson",font18,(SCRW*0.5,200),tags=["credits"],backgroundCol=None)
+credits2 = u.old_textbox("Idea suggested by: Freya Ingle",font18,(SCRW*0.5,230),tags=["credits"],backgroundCol=None)
+credits3 = u.old_textbox("Level design by: Scott Wilson",font18,(SCRW*0.5,260),tags=["credits"],backgroundCol=None)
+credits4 = u.old_textbox("Level 15 design: ",font18,(SCRW*0.5,290),tags=["credits"],backgroundCol=None)
+credits5 = u.old_textbox("Music by: Scott Wilson",font18,(SCRW*0.5,320),tags=["credits"],backgroundCol=None)
+credits6 = u.old_textbox("Game testers: ",font18,(SCRW*0.5,350),tags=["credits"],backgroundCol=None)
 
 linkBox = u.old_textbox("Link mode",font18,(SCRW//2,100),tags=["editor"],backgroundCol=colour.red)
 
 boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,levelsBox,settingsBox,
          showFPSBox,statsTitleBox,collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox,
          resetStatsBox,annoyingBossesBox,soundBox,highResTexturesBox,chaosModeBox,messageBox,
-         achievementBox,achievementTitleBox]
+         achievementBox,achievementTitleBox,creditsTitleBox,creditsBox,credits1,credits2,credits3,
+         credits4,credits5,credits6]
 # hard coded textboxes
 
 ##################################################
@@ -2501,6 +2508,8 @@ def reposition_boxes():
     messageBox.pos = (SCRW*0.5,SCRH-50)
     achievementBox.pos = (SCRW*0.3,500)
     achievementTitleBox.pos = (SCRW//2,50)
+    creditsBox.pos = (SCRW * 0.3, 400)
+    creditsTitleBox.pos = (SCRW//2,50)
 
     game.editor.linkRect.move_to(SCRW-100,SCRH-100)
 
@@ -2625,6 +2634,9 @@ def tick_boxes():
 
     if achievementBox.isPressed():
         game.scene = "achievements"
+
+    if creditsBox.isPressed():
+        game.scene = "credits"
 
 def spike_convert(item,orn=0):
     if orn == 0:
