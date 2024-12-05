@@ -309,6 +309,11 @@ class MiscData:
         self.bombFuse = 1000
         self.bombDamage = 100
 
+        self.timerStart = 0
+        self.timerCount = 0
+        self.timerRunning = False
+        self.showTimer = False
+
         self.lastMessageChange = 0
         self.messageState = 0
         self.messages = ["Find me on github! https://github.com/ScootiusMaximus/Platform-engine",
@@ -326,7 +331,7 @@ class Chaos:
         self.lastChange = 0
         self.action = 0
         self.actions = ["spawn enemies","rgb","low gravity","speed","random teleport",
-                        "boss fight","thick","invert screen","wonky"]
+                        "boss fight","thick","invert screen","wonky","bomb strike"]
 
     def reset(self):
         self.lastChange = now()
@@ -661,6 +666,12 @@ class Game:
                 item.update_image(self.img.image["enemy_body_thick"])
             for item in self.bossEntities:
                 item.update_image(self.img.image["boss_img_thick"])
+
+        elif what == "bomb strike":
+            for _ in range(5):
+                pos = make_position_modifier(1,3)
+                self.bombs.append(pos)
+                self.bombStates.append([0,0])
 
     def end_chaos(self):
         self.chaos.reset()
@@ -2328,7 +2339,7 @@ selectedBox = u.old_textbox("",font18,(SCRW//2,60),tags=["editor"])
 coordBox = u.old_textbox("",font18,(SCRW//3,20),tags=["editor"])
 levelIDXBox = u.old_textbox("",font18,(SCRW//2,20),tags=["ingame","editor"])
 settingsBox = u.old_textbox("SETTINGS",font18,(SCRW*0.7,500),oval=True,tags=["menu"])
-showFPSBox = u.old_textbox("Show FPS",font18,(SCRW//2,50),tags=["settings"])
+showFPSBox = u.old_textbox("Show FPS",font18,(SCRW*0.4,50),tags=["settings"])
 FPSBox = u.old_textbox("FPS: -",font18,(SCRW-50,SCRH-50),tags=["ingame","editor","settings"])
 statsTitleBox = u.old_textbox("Statistics",font28,(SCRW//2,300),tags=["settings"])
 collectedStarsBox = u.old_textbox("Stars collectd: -",font18,(SCRW//2,400),tags=["settings"])
@@ -2355,6 +2366,11 @@ credits6 = u.old_textbox("Artwork by: Scott Wilson",font18,(SCRW*0.5,350),tags=[
 credits7 = u.old_textbox("Thank you to Game testers: ",font18,(SCRW*0.5,400),tags=["credits"],backgroundCol=None)
 credits8 = u.old_textbox("Billy Baldwin, Prithvi, Robert Harvey, Esther Walden :D",font18,(SCRW*0.5,430),tags=["credits"],backgroundCol=None)
 credits9 = u.old_textbox("Josephine Baker, Carolyn Kuang, J Pilphott",font18,(SCRW*0.5,450),tags=["credits"],backgroundCol=None)
+credits10 = u.old_textbox("Mihran Khachatryan, Upe Severija Tamosauskaite",font18,(SCRW*0.5,470),tags=["credits"],backgroundCol=None)
+timerBox = u.old_textbox("0:0:0",font18,(20,20),center=False)
+startStopBox = u.old_textbox("Start timer",font18,(20,50),center=False)
+showTimerBox = u.old_textbox("Show timer",font18,(SCRW*0.6,50),tags=["settings"])
+
 
 linkBox = u.old_textbox("Link mode",font18,(SCRW//2,100),tags=["editor"],backgroundCol=colour.red)
 
@@ -2362,7 +2378,7 @@ boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,le
          showFPSBox,statsTitleBox,collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox,
          resetStatsBox,annoyingBossesBox,soundBox,highResTexturesBox,chaosModeBox,messageBox,
          achievementBox,achievementTitleBox,creditsTitleBox,creditsBox,credits1,credits2,credits3,
-         credits4,credits5,credits6,credits7,credits8,credits9]
+         credits4,credits5,credits6,credits7,credits8,credits9,credits10,timerBox,startStopBox,showTimerBox]
 # hard coded textboxes
 
 ##################################################
@@ -2525,6 +2541,8 @@ def reposition_boxes():
     credits7.pos = (SCRW*0.5,400)
     credits8.pos = (SCRW*0.5,430)
     credits9.pos = (SCRW*0.5,450)
+    timerBox.pos = (20,20)
+    startStopBox.pos = (20,50)
 
     game.editor.linkRect.move_to(SCRW-100,SCRH-100)
 
@@ -2652,6 +2670,29 @@ def tick_boxes():
 
     if creditsBox.isPressed():
         game.scene = "credits"
+
+    if game.misc.showTimer and game.scene == "ingame":
+        timerBox.display()
+        startStopBox.display()
+        startStopBox.isShowing = True
+        if game.misc.timerRunning:
+            time = now() - game.misc.timerStart
+            ms = (time)  # + now())
+            secs = (ms // 1000) % 60
+            mins = (ms // (1000 * 60)) % 60
+            timerBox.update_message(f"{mins}:{secs}:{ms}")
+
+    if startStopBox.isPressed():
+        game.misc.timerRunning = not game.misc.timerRunning
+        if game.misc.timerRunning:
+            game.misc.timerStart = now()
+            startStopBox.update_message("Stop timer")
+        else:
+            startStopBox.update_message("Start timer")
+    startStopBox.isShowing = False
+
+    if showTimerBox.isPressed():
+        game.misc.showTimer = not game.misc.showTimer
 
 def spike_convert(item,orn=0):
     if orn == 0:
@@ -2853,6 +2894,9 @@ while True:
 
         if game.settings.chaosMode:
             SCREEN.blit(img.image["tick"],(chaosModeBox.pos[0] + chaosModeBox.textRect[2] / 2, chaosModeBox.pos[1] - th))
+
+        if game.misc.showTimer:
+            SCREEN.blit(img.image["tick"],(showTimerBox.pos[0]+showTimerBox.textRect[2]/2,showTimerBox.pos[1]-th))
 
     elif game.scene == "achievements":
         game.achievements.update_slots()
