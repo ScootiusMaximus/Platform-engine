@@ -1173,6 +1173,8 @@ class Game:
 
         if self.player.wallData[0] and self.player.yvel == 0:
             self.player.ypos = ((self.player.ypos // 50) * 50) + (self.player.height//2) + 11
+            if self.player.wallData[3]:
+                self.player.ypos -= 50
             #self.player.ypos = self.player.hitbox.collideBottom[1] - self.player.height//2 +1
             # the top of the platform it is colliding with
             self.player.onFloor = True
