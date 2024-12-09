@@ -670,7 +670,8 @@ class Game:
         elif what == "bomb strike":
             for _ in range(5):
                 pos = make_position_modifier(1,3)
-                self.bombs.append(pos)
+                self.bombs.append([self.player.xpos + pos[0],
+                                   self.player.ypos + pos[1]])
                 self.bombStates.append([0,0])
 
     def end_chaos(self):
@@ -741,7 +742,7 @@ class Game:
             pygame.draw.rect(SCREEN,drawCol,(0,i*(SCRH/step),SCRW,step))
 
     def trigger_death(self):
-        print("death triggered")
+        #print("death triggered")
         self.animations.append(Death_Particle(self.player.xpos,self.player.ypos+14,self.player.colour))
         self.enableMovement = False
         self.stats.deaths += 1
@@ -752,7 +753,9 @@ class Game:
         #if not self.contains_animation("death"):
 
     def reset_player(self):
-        print("player reset")
+        #print("player reset")
+        #print(f"Before: Player pos {(self.player.xpos,self.player.ypos)}\n"
+        #      f"Game spawnpoints {self.spawnPoint}")
         self.player.xpos,self.player.ypos = self.spawnPoint[0]+20,self.spawnPoint[1]+20
         self.update_level(next=False) # lazy, only need to change entity positions
         self.player.wallData = [False,False,False,False,False]
@@ -760,6 +763,13 @@ class Game:
         self.player.atFinish = False
         self.enableMovement = True
         self.restart = False
+        self.player.collidetop = None
+        self.player.collidebottom = None
+        self.player.collideleft = None
+        self.player.collideright = None
+        self.player.collidewhole = None
+        #print(f"After: Player pos {(self.player.xpos, self.player.ypos)}\n"
+        #      f"Game spawnpoints {self.spawnPoint}")
 
     def contains_animation(self,name):
         found = False
@@ -997,6 +1007,7 @@ class Game:
                 self.trigger_death() # has just died
             else:
                 self.reset_player() # has finished animation
+                #print("finished death")
 
         if self.contains_animation("death"):
             self.enableMovement = False
@@ -1161,12 +1172,10 @@ class Game:
             self.player.yvel = 0
 
         if self.player.wallData[0] and self.player.yvel == 0:
-            #self.player.ypos = ((self.player.ypos // 50) * 50) + 31
-            #print(self.player.hitbox.collideWhole)
-            self.player.ypos = self.player.hitbox.collideBottom[1] - self.player.height//2 +1
+            self.player.ypos = ((self.player.ypos // 50) * 50) + (self.player.height//2) + 11
+            #self.player.ypos = self.player.hitbox.collideBottom[1] - self.player.height//2 +1
             # the top of the platform it is colliding with
             self.player.onFloor = True
-            #self.player.ypos
             if self.player.lastYvel != 0: # if just landed
                 self.animations.append(Impact_Particle(self.player.xpos,self.player.ypos+14,colour.darkgrey))
 
@@ -1193,7 +1202,7 @@ class Game:
         #print(f"player ypos: {self.player.ypos}, yvel: {self.player.yvel}")
 
     def update_level(self,next=False):
-        print("level updated")
+        #print("level updated")
         if next:
             self.levelIDX += 1
 
@@ -1958,6 +1967,8 @@ class Enemy(Physics_Object):
             self.xvel = 0
         elif self.wallData[2] and self.xvel > 0:
             self.xvel = 0
+        if not (False in self.wallData):
+            self.needsDel = True
 
         self.xpos += self.xvel
         self.ypos += self.yvel
@@ -2366,7 +2377,7 @@ credits6 = u.old_textbox("Artwork by: Scott Wilson",font18,(SCRW*0.5,350),tags=[
 credits7 = u.old_textbox("Thank you to Game testers: ",font18,(SCRW*0.5,400),tags=["credits"],backgroundCol=None)
 credits8 = u.old_textbox("Billy Baldwin, Prithvi, Robert Harvey, Esther Walden :D",font18,(SCRW*0.5,430),tags=["credits"],backgroundCol=None)
 credits9 = u.old_textbox("Josephine Baker, Carolyn Kuang, J Pilphott",font18,(SCRW*0.5,450),tags=["credits"],backgroundCol=None)
-credits10 = u.old_textbox("Mihran Khachatryan, Upe Severija Tamosauskaite",font18,(SCRW*0.5,470),tags=["credits"],backgroundCol=None)
+credits10 = u.old_textbox("Mihran Khachatryan, Upe Severija Tamosauskaite, Andrei Mocanu",font18,(SCRW*0.5,470),tags=["credits"],backgroundCol=None)
 timerBox = u.old_textbox("0:0:0",font18,(20,20),center=False)
 startStopBox = u.old_textbox("Start timer",font18,(20,50),center=False)
 showTimerBox = u.old_textbox("Show timer",font18,(SCRW*0.6,50),tags=["settings"])
@@ -2607,6 +2618,7 @@ def tick_boxes():
             
         game.scene = "menu"
         game.reset_player()
+        #print("menu pressed")
 
     if editorBox.isPressed():
         game.scene = "editor"
@@ -2653,6 +2665,8 @@ def tick_boxes():
 
     if chaosModeBox.isPressed():
         game.settings.chaosMode = not game.settings.chaosMode
+        if not game.settings.chaosMode:
+            game.end_chaos()
 
     if now() - game.misc.lastMessageChange > 6000:
         game.misc.messageState += 1
@@ -2813,6 +2827,7 @@ while True:
                 if game.misc.wasTransition:
                     game.update_level(next=True)
                     game.reset_player()
+                    #print("finished level")
                 else:
                     game.animations.append(Transition())
             #game.trigger_death(die=False)
