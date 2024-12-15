@@ -567,6 +567,9 @@ class Game:
             for key in self.achievements.achievements:
                 if self.achievements.achievements[key] != self.achievements.lastAchievements[key]:
                     #print("announcing")
+                    ##if key == "death100":
+                    #    w.open("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+
                     self.notifications.append(
                         Notification(self.achievements.messages[key][0],self.achievements.messages[key][1]))
 
@@ -2380,6 +2383,7 @@ credits7 = u.old_textbox("Thank you to Game testers: ",font18,(SCRW*0.5,400),tag
 credits8 = u.old_textbox("Billy Baldwin, Prithvi, Robert Harvey, Esther Walden :D",font18,(SCRW*0.5,430),tags=["credits"],backgroundCol=None)
 credits9 = u.old_textbox("Josephine Baker, Carolyn Kuang, J Pilphott",font18,(SCRW*0.5,450),tags=["credits"],backgroundCol=None)
 credits10 = u.old_textbox("Mihran Khachatryan, Upe Severija Tamosauskaite, Andrei Mocanu",font18,(SCRW*0.5,470),tags=["credits"],backgroundCol=None)
+credits11 = u.old_textbox("Rose Mitchell",font18,(SCRW*0.5,490),tags=["credits"],backgroundCol=None)
 timerBox = u.old_textbox("0:0:0",font18,(20,20),center=False)
 startStopBox = u.old_textbox("Start timer",font18,(20,50),center=False)
 showTimerBox = u.old_textbox("Show timer",font18,(SCRW*0.6,50),tags=["settings"])
@@ -2391,7 +2395,8 @@ boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,le
          showFPSBox,statsTitleBox,collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox,
          resetStatsBox,annoyingBossesBox,soundBox,highResTexturesBox,chaosModeBox,messageBox,
          achievementBox,achievementTitleBox,creditsTitleBox,creditsBox,credits1,credits2,credits3,
-         credits4,credits5,credits6,credits7,credits8,credits9,credits10,timerBox,startStopBox,showTimerBox]
+         credits4,credits5,credits6,credits7,credits8,credits9,credits10,
+         credits11,timerBox,startStopBox,showTimerBox]
 # hard coded textboxes
 
 ##################################################
@@ -2554,6 +2559,8 @@ def reposition_boxes():
     credits7.pos = (SCRW*0.5,400)
     credits8.pos = (SCRW*0.5,430)
     credits9.pos = (SCRW*0.5,450)
+    credits10.pos = (SCRW*0.5,470)
+    credits11.pos = (SCRW*0.5,490)
     timerBox.pos = (20,20)
     startStopBox.pos = (20,50)
 
