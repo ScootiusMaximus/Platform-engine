@@ -57,6 +57,7 @@ class Images:
         "appearing_rock" : pygame.image.load("appearing_rock.png"),
         "bomb" : pygame.image.load("bomb.png"),
         "bomb_lit": pygame.image.load("bomb_lit.png"),
+        "ice": pygame.image.load("ice.png"),
         "fan_column" : [
             pygame.image.load("fan_column1.png"),
             pygame.image.load("fan_column2.png"),
@@ -459,7 +460,6 @@ class Notification:
         self.bodyBox.display()
 
 class Game:
-
     def __init__(self):
         self.gravity = 0.981
         self.scene = "menu"
@@ -510,6 +510,8 @@ class Game:
         self.appearingPlatformLinks = []
         self.bombs = []
         self.bombStates = [] # should be list of [state,time started exploding]
+        self.ice = []
+        self.iceStates = [] # False = present, True = broken
 
         self.events = [False,False]
         # events should be:
@@ -781,9 +783,9 @@ class Game:
         #if not self.contains_animation("death"):
 
     def reset_player(self):
-        self.log(f"{now()}\nplayer reset")
-        self.log(f"Before: Player pos {(self.player.xpos,self.player.ypos)}\n"
-              f"Game spawnpoints {self.spawnPoint}")
+        #self.log(f"{now()}\nplayer reset")
+        #self.log(f"Before: Player pos {(self.player.xpos,self.player.ypos)}\n"
+        #      f"Game spawnpoints {self.spawnPoint}")
         spawn = self.spawnPoint
         self.player.xpos,self.player.ypos = self.spawnPoint[0]+20,self.spawnPoint[1]+20
         self.update_level(next=False) # lazy, only need to change entity positions
@@ -799,8 +801,9 @@ class Game:
         self.player.collideLeft = None
         self.player.collideRight = None
         self.player.collideWhole = None
-        self.log(f"After: Player pos {(self.player.xpos, self.player.ypos)}\n"
-              f"Game spawnpoints {self.spawnPoint}")
+        self.player.floorMaterial = None
+        #self.log(f"After: Player pos {(self.player.xpos, self.player.ypos)}\n"
+        #      f"Game spawnpoints {self.spawnPoint}")
 
     def contains_animation(self,name):
         found = False
@@ -872,9 +875,13 @@ class Game:
 
     def tick_bombs(self):
         for i in range(len(self.bombs)):
-            dist = self.get_dist(self.bombs[i],(self.player.xpos,self.player.ypos))
+            dists = []
+            for which in [self.bossEntities,self.entities,[self.player]]:
+                for mob in which:
+                    dists.append(self.get_dist(self.bombs[i],(mob.xpos,mob.ypos)))
             #print(f"bomb at {self.bombs[i]} state {self.bombStates[i][0]}")
-            if abs(dist) < self.misc.bombRadius and self.bombStates[i][0] == 0:
+
+            if min(dists) < self.misc.bombRadius and self.bombStates[i][0] == 0:
                 self.bombStates[i][0] = 1
                 self.bombStates[i][1] = now()
 
@@ -883,7 +890,7 @@ class Game:
                 self.bombStates[i][0] = 2
                 bomb = self.bombs[i]
                 self.animations.append(Bomb_Particle(bomb[0],bomb[1]))
-                if dist < self.misc.bombRadius:
+                if self.get_dist(self.bombs[i],(self.player.xpos,self.player.ypos)) < self.misc.bombRadius:
                     self.player.isDead = True
                 for mob in self.entities:
                     #print(f"[{mob.xpos},{mob.ypos}] to {self.bombs[i]} is {self.get_dist(self.bombs[i],(mob.xpos,mob.ypos))}")
@@ -978,6 +985,11 @@ class Game:
             self.player.yvel += self.player.gravity
         else:
             self.player.yvel = 0
+
+        if self.player.floorMaterial == "ice":
+            self.player.xInc = 0.2
+        else:
+            self.player.xInc = 1
             
         if self.player.move[2]: # move faster
                     self.player.xvel += self.player.xInc   
@@ -991,7 +1003,10 @@ class Game:
 
             
         if (not self.player.move[1]) and (not self.player.move[2]): # if not pressing l or r
-            self.player.xvel = self.player.xvel * 0.8
+            if self.player.floorMaterial == "ice":
+                self.player.xvel = self.player.xvel * 0.95
+            else:
+                self.player.xvel = self.player.xvel * 0.8
             if abs(self.player.xvel) < 0.1: self.player.xvel = 0
 
         if self.player.xvel > 0 and self.player.wallData[2]: # check for walls l and r
@@ -1069,7 +1084,6 @@ class Game:
             mob.wallData = [False,False,False,False,False]
             mob.hitbox.clear()
 
-
         for item in self.platforms:
             compItem = toRect(get_actual_pos(item))
             for which in [self.bossEntities, self.entities, [self.player]]:
@@ -1077,6 +1091,7 @@ class Game:
                     if pygame.Rect.colliderect(mob.hitbox.actBottom,compItem):
                         mob.wallData[0] = True
                         mob.hitbox.collideBottom = item
+                        mob.floorMaterial = "platform"
                         #print("yup")
                     if pygame.Rect.colliderect(mob.hitbox.actLeft,compItem):
                         mob.wallData[1] = True
@@ -1090,6 +1105,30 @@ class Game:
                     if pygame.Rect.colliderect(mob.hitbox.actWhole,compItem):
                         mob.wallData[4] = True
                         mob.hitbox.collideWhole = item
+                        mob.floorMaterial = "platform"
+
+        for item in self.ice:
+            compItem = toRect(get_actual_pos(item))
+            for which in [self.bossEntities, self.entities, [self.player]]:
+                for mob in which:
+                    if pygame.Rect.colliderect(mob.hitbox.actBottom,compItem):
+                        mob.wallData[0] = True
+                        mob.hitbox.collideBottom = item
+                        mob.floorMaterial = "ice"
+                        #print("yup")
+                    if pygame.Rect.colliderect(mob.hitbox.actLeft,compItem):
+                        mob.wallData[1] = True
+                        mob.hitbox.collideLeft = item
+                    if pygame.Rect.colliderect(mob.hitbox.actRight,compItem):
+                        mob.wallData[2] = True
+                        mob.hitbox.collideRight = item
+                    if pygame.Rect.colliderect(mob.hitbox.actTop,compItem):
+                        mob.wallData[3] = True
+                        mob.hitbox.collideTop = item
+                    if pygame.Rect.colliderect(mob.hitbox.actWhole,compItem):
+                        mob.wallData[4] = True
+                        mob.hitbox.collideWhole = item
+                        mob.floorMaterial = "ice"
 
         for i in range(len(self.disappearingPlatforms)):
             plat = self.disappearingPlatforms[i]
@@ -1271,6 +1310,8 @@ class Game:
         self.appearingPlatformLinks = []
         self.bombs = []
         self.bombStates = []
+        self.ice = []
+        self.iceStates = []
 
         self.spawnPoint = []
 
@@ -1311,7 +1352,9 @@ class Game:
                 self.data[str(self.levelIDX)]["appearing platform links"] = []
             if "bombs" not in self.data[str(self.levelIDX)]:
                 self.data[str(self.levelIDX)]["bombs"] = []
-            
+            if "ice" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["ice"] = []
+
         except KeyError: # should only happen if missing the enitre level number
             self.data[str(self.levelIDX)] = {
                 "start":[0,0],
@@ -1357,7 +1400,9 @@ class Game:
         for item in self.data[str(self.levelIDX)]["bombs"]:
             self.bombs.append(item)
             self.bombStates.append([0,0])
-
+        for item in self.data[str(self.levelIDX)]["ice"]:
+            self.ice.append(item)
+            self.iceStates.append(False)
         for item in self.data[str(self.levelIDX)]["disappearing platforms"]:
             self.disappearingPlatforms.append(item)
             self.disappearingPlatformLinks.append(-1)
@@ -1409,6 +1454,10 @@ class Game:
                 blitToCam(self.img.image["checkpoint_on"],item)
             else:
                 blitToCam(self.img.image["checkpoint_off"],item)
+        for i in range(len(self.ice)):
+            if not self.iceStates[i]:
+                sendPlatformToCam(self.ice[i],self.settings.highResTextures,col=self.misc.platformCol,platType="ice")
+
 
         if self.scene == "ingame":
             for item in self.data[str(self.levelIDX)]["buttons"]:
@@ -1504,6 +1553,9 @@ class Game:
         pygame.draw.rect(SCREEN, colour.darkgrey, (10, 685 + scr, 50, 10))
         # platform icon
         SCREEN.blit(self.img.image["bomb_lit"],(10,725+scr))
+        #bomb
+        SCREEN.blit(self.img.image["ice"],(10,785+scr))
+        # ice
 
     def check_selected(self):
         mouseRect = toRect(self.editor.mouseRect)
@@ -1577,7 +1629,7 @@ class Game:
                         self.data[str(self.levelIDX)]["disappearing platform links"] = self.disappearingPlatformLinks
                         self.data[str(self.levelIDX)]["appearing platform links"] = self.appearingPlatformLinks
         else:
-            if self.editor.selected in ["platform","disappearing platform","appearing platform"]:
+            if self.editor.selected in ["platform","disappearing platform","appearing platform","ice"]:
                 if self.editor.clicks == [True,False]:
                     #add start coords
                     realx,realy = pygame.mouse.get_pos()
@@ -1602,8 +1654,10 @@ class Game:
                         elif self.editor.selected == "appearing platform":
                             self.data[str(self.levelIDX)]["appearing platforms"].append(self.editor.pendingRect)
                             self.data[str(self.levelIDX)]["appearing platform links"].append(-1)
-                    self.editor.pendingRect = [0,0,0,0]
+                        elif self.editor.selected == "ice":
+                            self.data[str(self.levelIDX)]["ice"].append(self.editor.pendingRect)
 
+                    self.editor.pendingRect = [0,0,0,0]
                 if self.editor.clicksR == [True,False]:
                     # right click
                     which = ""
@@ -1616,6 +1670,8 @@ class Game:
                     elif self.editor.selected == "appearing platform":
                         which = "appearing platforms"
                         infoList = self.appearingPlatformLinks
+                    elif self.editor.selected == "ice":
+                        which = "ice"
 
                     for item in self.data[str(self.levelIDX)][which]:
                         if pygame.Rect.colliderect(toRect(newMouseRect),toRect(item)):
@@ -1625,6 +1681,7 @@ class Game:
                                 infoList.pop(idx)
                             except:
                                 pass
+                self.update_level(next=False)
             else:
                 if self.editor.clicks == [True,False]: # LMB
                     realx,realy = pygame.mouse.get_pos()
@@ -1755,7 +1812,7 @@ class Editor:
         self.ref = ["platform","spike","end","fan base",
                     "fan column","star","enemy","checkpoint",
                     "boss","button","disappearing platform",
-                    "appearing platform","bomb"]
+                    "appearing platform","bomb","ice"]
 
         for i in range(50):
             y = i*60
@@ -1798,6 +1855,7 @@ class Physics_Object:
         self.maxYvel = maxYvel
         self.xvel = 0
         self.yvel = 0
+        self.floorMaterial = None
 
 class Player(Physics_Object):
     def __init__(self,gravity,maxXvel=10,maxYvel=30,img=None):
@@ -2507,6 +2565,8 @@ def sendPlatformToCam(item,isHighRes,col=None,platType="normal"):
             image = img.image["disappearing_rock"]
         elif platType == "appearing":
             image = img.image["appearing_rock"]
+        elif platType == "ice":
+            image = img.image["ice"]
 
         for x in range(int(item[2]//50)):
             for y in range(int(item[3]//50)):
@@ -2573,7 +2633,7 @@ def reposition_boxes():
     coordBox.pos = (SCRW//3,20)
     levelIDXBox.pos = (SCRW//2,20)
     settingsBox.pos = (SCRW//1.3,500)
-    showFPSBox.pos = (SCRW//2,50)
+    showFPSBox.pos = (SCRW*0.4,50)
     FPSBox.pos = (SCRW-50,SCRH-50)
     statsTitleBox.pos = (SCRW//2,300)
     collectedStarsBox.pos = (SCRW//2,400)
@@ -2605,6 +2665,7 @@ def reposition_boxes():
     credits11.pos = (SCRW*0.5,490)
     timerBox.pos = (20,20)
     startStopBox.pos = (20,50)
+    showTimerBox.pos = (SCRW*0.6,50)
 
     game.editor.linkRect.move_to(SCRW-100,SCRH-100)
 
