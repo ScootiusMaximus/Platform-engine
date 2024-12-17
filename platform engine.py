@@ -285,6 +285,7 @@ class Stats:
         self.deaths = 0
         self.hidden1progress = 0
         self.bossesKilled = 0
+        self.fallen = False
 
 class MiscData:
     def __init__(self):
@@ -343,6 +344,7 @@ class Achievements:
             "death1":False,
             "death10":False,
             "death100":False,
+            "death1k":False,
             "star1":False,
             "star10":False,
             "star100":False,
@@ -350,18 +352,21 @@ class Achievements:
             "enemy1":False,
             "enemy10":False,
             "enemy100":False,
+            "enemy1k":False,
             "boss1":False,
             "hidden1":False,
             "time1":False,
             "time10":False,
             "time100":False,
-            "hidden2":False
+            "hidden2":False,
         }
         self.lastAchievements = {}
         self.messages = {
             "death1": ["Ouch","Die for the first time"],
             "death10": ["Big Ouch","Die 10 times"],
             "death100": ["Biggest Ouch","Die 100 times"],
+            "death1k": ["Keep Trying","Die 1000 times"],
+            "death10k":["Really?","Die 10,000 times"],
             "star1": ["Shiny","Collect a star"],
             "star10": ["Shinier","Collect 10 stars"],
             "star100": ["Collector of Shiny","Collect 100 stars"],
@@ -369,6 +374,7 @@ class Achievements:
             "enemy1": ["Little Red Square","Defeat an enemy"],
             "enemy10": ["Little Red Squares","Defeat 10 enemies"],
             "enemy100": ["Many Little Red Squares","Defeat 100 enemies"],
+            "enemy1k": ["Square Slayer","Defeat 1000 enemies"],
             "boss1": ["Take That!","Defeat a Boss"],
             "hidden1": ["Hidden achievement 1","Why would you do that?"],
             "time1": ["Getting Started","Play for 1 minute"],
@@ -453,6 +459,7 @@ class Notification:
         self.bodyBox.display()
 
 class Game:
+
     def __init__(self):
         self.gravity = 0.981
         self.scene = "menu"
@@ -472,6 +479,8 @@ class Game:
 
         self.clouds = []
         self.notifications = []
+
+        self.logs = []
 
         self.UP = [pygame.K_UP,pygame.K_w,pygame.K_SPACE]
         self.LEFT = [pygame.K_a,pygame.K_LEFT]
@@ -515,6 +524,14 @@ class Game:
         self.fix_stats_stars()
         self.achievements.update_slots()
 
+    def log(self,message):
+        self.logs.append(message)
+
+    def save_log(self):
+        with open("log.txt","w") as file:
+            for line in self.logs:
+                file.write(f"{line}\n")
+
     def check_achievements(self,announce=False):
         self.achievements.lastAchievements = deepcopy(self.achievements.achievements)
         # since modifying achievements modifies lastAchievements without deepcopy()
@@ -525,6 +542,10 @@ class Game:
             self.achievements.achievements["death10"] = True
         if self.stats.deaths >= 100:
             self.achievements.achievements["death100"] = True
+        if self.stats.deaths >= 1000:
+            self.achievements.achievements["death1k"] = True
+        if self.stats.deaths >= 10000:
+            self.achievements.achievements["death10k"] = True
 
         starCount = 0
         for key in self.stats.stars:
@@ -537,6 +558,8 @@ class Game:
             self.achievements.achievements["star100"] = True
 
         if self.player.ypos >= 5000 and self.scene == "ingame":
+            self.stats.fallen = True
+        if self.stats.fallen:
             self.achievements.achievements["fall1"] = True
 
         if self.stats.enemiesKilled >= 1:
@@ -545,6 +568,8 @@ class Game:
             self.achievements.achievements["enemy10"] = True
         if self.stats.enemiesKilled >= 100:
             self.achievements.achievements["enemy100"] = True
+        if self.stats.enemiesKilled >= 1000:
+            self.achievements.achievements["enemy1k"] = True
 
         if self.stats.bossesKilled >= 1:
             self.achievements.achievements["boss1"] = True
@@ -756,23 +781,26 @@ class Game:
         #if not self.contains_animation("death"):
 
     def reset_player(self):
-        #print("player reset")
-        #print(f"Before: Player pos {(self.player.xpos,self.player.ypos)}\n"
-        #      f"Game spawnpoints {self.spawnPoint}")
+        self.log(f"{now()}\nplayer reset")
+        self.log(f"Before: Player pos {(self.player.xpos,self.player.ypos)}\n"
+              f"Game spawnpoints {self.spawnPoint}")
+        spawn = self.spawnPoint
         self.player.xpos,self.player.ypos = self.spawnPoint[0]+20,self.spawnPoint[1]+20
         self.update_level(next=False) # lazy, only need to change entity positions
+        # this line is possibly what causes the nuclear ray glitch
+        self.spawnPoint = spawn
         self.player.wallData = [False,False,False,False,False]
         self.player.isDead = False
         self.player.atFinish = False
         self.enableMovement = True
         self.restart = False
-        self.player.collidetop = None
-        self.player.collidebottom = None
-        self.player.collideleft = None
-        self.player.collideright = None
-        self.player.collidewhole = None
-        #print(f"After: Player pos {(self.player.xpos, self.player.ypos)}\n"
-        #      f"Game spawnpoints {self.spawnPoint}")
+        self.player.collideTop = None
+        self.player.collideBottom = None
+        self.player.collideLeft = None
+        self.player.collideRight = None
+        self.player.collideWhole = None
+        self.log(f"After: Player pos {(self.player.xpos, self.player.ypos)}\n"
+              f"Game spawnpoints {self.spawnPoint}")
 
     def contains_animation(self,name):
         found = False
@@ -793,6 +821,16 @@ class Game:
     def load_stats(self):
         with open("stats.json","r") as file:
             info = json.load(file)
+            for what in ["enemiesKilled","playTime","deaths","hidden1",
+                         "bossesKilled"]:
+                if what not in info:
+                    info[what] = 0
+
+            if "stars" not in info:
+                info["stars"] = {}
+            if "fallen" not in info:
+                info["fallen"] = False
+
             self.stats.stars = info["stars"]
             self.stats.enemiesKilled = info["enemiesKilled"]
             self.stats.startTime = info["playTime"]
@@ -800,6 +838,7 @@ class Game:
             self.stats.deaths = info["deaths"]
             self.stats.hidden1progress = info["hidden1"]
             self.stats.bossesKilled = info["bossesKilled"]
+            self.stats.fallen = info["fallen"]
 
         for _ in range(3):
             self.check_achievements(announce=False)
@@ -817,6 +856,7 @@ class Game:
             info["deaths"] = self.stats.deaths
             info["hidden1"] = self.stats.hidden1progress
             info["bossesKilled"] = self.stats.bossesKilled
+            info["fallen"] = self.achievements.achievements["fall1"]
             file.write(json.dumps(info))
 
     def tick_button_platforms(self):
@@ -1169,7 +1209,14 @@ class Game:
             item.draw()
 
     def correct_mobs(self):
-        # bottom left right top whole
+        #print(self.player.yvel)
+        if self.player.wallData[3] and self.player.yvel < 0:# and not self.player.wallData[0]: # top only
+            self.player.wallData[1] = False
+            self.player.wallData[2] = False # stop wall jumping
+            self.player.yvel = 0
+            #self.player.ypos = ((self.player.ypos//50)*50) + (self.player.height//2) + 10
+            self.player.ypos = (self.player.hitbox.collideTop[1] + self.player.hitbox.collideTop[3] + (self.player.height//2))
+
         if self.player.wallData[3] and self.player.yvel > 0:  # if clipping through ground
             #self.player.ypos -= 50
             self.player.yvel = 0
@@ -1184,12 +1231,7 @@ class Game:
             if self.player.lastYvel != 0: # if just landed
                 self.animations.append(Impact_Particle(self.player.xpos,self.player.ypos+14,colour.darkgrey))
 
-        if self.player.wallData[3] and self.player.yvel < 0:# and not self.player.wallData[0]: # top only
-            self.player.wallData[1] = False
-            self.player.wallData[2] = False # stop wall jumping
-            self.player.yvel = 0
-            self.player.ypos = (self.player.hitbox.collideTop[1] +
-                                self.player.hitbox.collideTop[3] + (self.player.height//2))
+        # was here
 
         for enemy in self.entities:
             if enemy.wallData[0] and enemy.yvel == 0:
@@ -2731,6 +2773,7 @@ def spike_convert(item,orn=0):
     #return [item[0],item[1],40,30]
 
 def go_quit():
+    game.save_log()
     game.save_stats()
     pygame.mixer.quit()
     pygame.quit()
@@ -2815,13 +2858,16 @@ while True:
     if game.sound.enabled:
         game.sound.run_music()
 
+    #game.log(f"{now()}: ({game.player.xpos},{game.player.ypos})")
+
     if game.scene == "ingame":
         game.draw_gradient()
         game.generate_cloud()
         game.draw_bg()
         game.tick_enemies()
         game.tick()
-        game.correct_mobs()
+        #game.log(f"after tick: ({game.player.xpos},{game.player.ypos})")
+        game.correct_mobs() # this one
         game.tick_player()
         game.player.update_hitboxes()
         if game.enableMovement:
