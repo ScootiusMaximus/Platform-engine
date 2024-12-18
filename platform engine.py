@@ -1020,11 +1020,11 @@ class Game:
                     self.player.yvel = -20
                     self.player.onFloor = False
                     if self.sound.enabled: self.sound.start_jump()
-            if self.player.wallData[1]:
+            if self.player.wallData[1] and self.player.floorMaterial != "ice":
                 self.player.yvel = -20
                 self.player.xvel = 10
                 if self.sound.enabled: self.sound.start_jump()
-            if self.player.wallData[2]:
+            if self.player.wallData[2] and self.player.floorMaterial != "ice":
                 self.player.yvel = -20
                 self.player.xvel = -10
                 if self.sound.enabled: self.sound.start_jump()
@@ -1231,7 +1231,12 @@ class Game:
                         self.end()
 
         for item in self.buttons:
-            if pygame.Rect.colliderect(self.player.hitbox.actWhole,get_actual_pos((item[0],item[1],50,50))):
+            press = []
+            for which in [self.bossEntities,self.entities,[self.player]]:
+                for mob in which:
+                    press.append(pygame.Rect.colliderect(mob.hitbox.actWhole,get_actual_pos((item[0],item[1],50,50))))
+
+            if (True in press):
                 self.buttonPresses[self.buttons.index(item)] = True
 
     def draw_animations(self):
@@ -1372,7 +1377,8 @@ class Game:
                 "disappearing platform links": [],
                 "appearing platforms": [],
                 "appearing platform links":[],
-                "bombs":[]}
+                "bombs":[],
+                "ice":[]}
 
         self.spawnPoint = self.data[str(self.levelIDX)]["start"]
         for item in self.data[str(self.levelIDX)]["platforms"]:
@@ -1387,7 +1393,7 @@ class Game:
             self.stars.append([item[0],item[1]])
         for item in self.data[str(self.levelIDX)]["mobs"]:
             self.mobs.append([item[0],item[1]])
-            self.entities.append(Enemy(item[0],item[1],img=self.img.image["enemy_body"],maxXvel=random.randint(4,6)))
+            self.entities.append(Enemy(item[0]+20,item[1],img=self.img.image["enemy_body"],maxXvel=random.randint(4,6)))
         for item in self.data[str(self.levelIDX)]["checkpoints"]:
             self.checkpoints.append([item[0],item[1]])
         for item in self.data[str(self.levelIDX)]["bosses"]:
@@ -1502,7 +1508,7 @@ class Game:
                 sendPlatformToCam(item,self.settings.highResTextures,platType="disappearing")#, col=[80,80,100])
 
             for item in self.data[str(self.levelIDX)]["appearing platforms"]:
-                sendPlatformToCam(item,self.settings.highResTextures,platType="disappearing")#, col=[180,180,200])
+                sendPlatformToCam(item,self.settings.highResTextures,platType="appearing")#, col=[180,180,200])
 
             for item in self.bombs:
                 blitToCam(self.img.image["bomb"],item)
@@ -1658,6 +1664,8 @@ class Game:
                             self.data[str(self.levelIDX)]["ice"].append(self.editor.pendingRect)
 
                     self.editor.pendingRect = [0,0,0,0]
+                    self.update_level(next=False)
+
                 if self.editor.clicksR == [True,False]:
                     # right click
                     which = ""
@@ -1681,7 +1689,7 @@ class Game:
                                 infoList.pop(idx)
                             except:
                                 pass
-                self.update_level(next=False)
+                    self.update_level(next=False)
             else:
                 if self.editor.clicks == [True,False]: # LMB
                     realx,realy = pygame.mouse.get_pos()
@@ -1845,6 +1853,7 @@ class Mob_Hitbox:
         self.collideBottom = None
         self.collideLeft = None
         self.collideRight = None
+        self.floorMaterial = "air"
 
 class Physics_Object:
     def __init__(self,xpos,ypos,gravity=0.981,maxXvel=10,maxYvel=30):
@@ -1875,13 +1884,6 @@ class Player(Physics_Object):
         self.atFinish = False
         self.width = 0
         self.height = 0
-
-        try:
-            self.update_image(self.img)
-        except:
-            self.width = 20
-            self.height = 20
-
         self.lastBlink = 0
         self.isBlinking = False
         self.blinkWait = random.randint(3,6) * 1000
@@ -1889,6 +1891,12 @@ class Player(Physics_Object):
         self.wallData = [False,False,False,False,False]
         self.onFloor = False
         self.hitbox = Mob_Hitbox()
+        try:
+            self.update_image(self.img)
+        except:
+            self.width = 20
+            self.height = 20
+
         if self.img == None:
             self.colour = (0,141,201)
         else:
