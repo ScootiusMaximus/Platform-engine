@@ -2495,15 +2495,21 @@ credits11 = u.old_textbox("Rose Mitchell",font18,(SCRW*0.5,490),tags=["credits"]
 timerBox = u.old_textbox("0:0:0",font18,(20,20),center=False)
 startStopBox = u.old_textbox("Start timer",font18,(20,50),center=False)
 showTimerBox = u.old_textbox("Show timer",font18,(SCRW*0.6,50),tags=["settings"])
+warningTitleBox = u.old_textbox("WARNING",fontTitle,(SCRW//2,150),backgroundCol=None,textCol=colour.red,tags=["warning"])
+wanringMessageBox1 = u.old_textbox("'Annoyinger Bosses' setting is no joke",font18,(SCRW*0.5,300),tags=["warning"],textCol=colour.black,backgroundCol=colour.red)
+wanringMessageBox2 = u.old_textbox("Please save unsaved work before proceeding",font18,(SCRW*0.5,350),tags=["warning"],textCol=colour.black,backgroundCol=colour.red)
+confirmBox = u.old_textbox("Continue",font28,(SCRW*0.5,430),oval=True,tags=["warning"],textCol=colour.red)
+cancelBox = u.old_textbox("Cancel",font28,(SCRW*0.5,490),oval=True,tags=["warning"])
 
 linkBox = u.old_textbox("Link mode",font18,(SCRW//2,100),tags=["editor"],backgroundCol=colour.red)
 
-boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,levelsBox,settingsBox,
-         showFPSBox,statsTitleBox,collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox,
-         resetStatsBox,annoyingBossesBox,soundBox,highResTexturesBox,chaosModeBox,messageBox,
-         achievementBox,achievementTitleBox,creditsTitleBox,creditsBox,credits1,credits2,credits3,
-         credits4,credits5,credits6,credits7,credits8,credits9,credits10,
-         credits11,timerBox,startStopBox,showTimerBox]
+boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,levelsBox,
+         settingsBox,showFPSBox,statsTitleBox,collectedStarsBox,enemiesDefeatedBox,
+         deathCountBox,uptimeBox,resetStatsBox,annoyingBossesBox,soundBox,
+         highResTexturesBox,chaosModeBox,messageBox,achievementBox,achievementTitleBox,
+         creditsTitleBox,creditsBox,credits1,credits2,credits3,credits4,credits5,credits6,
+         credits7,credits8,credits9,credits10,credits11,timerBox,startStopBox,showTimerBox,
+         warningTitleBox,wanringMessageBox1,wanringMessageBox2,confirmBox,cancelBox]
 # hard coded textboxes
 
 ##################################################
@@ -2769,7 +2775,18 @@ def tick_boxes():
             game.check_achievements(announce=False)
 
     if annoyingBossesBox.isPressed():
-        game.settings.annoyingBosses = not game.settings.annoyingBosses
+        #game.settings.annoyingBosses = not game.settings.annoyingBosses
+        if not game.settings.annoyingBosses:
+            game.scene = "warning"
+        else:
+            game.settings.annoyingBosses = False
+
+    if cancelBox.isPressed():
+        game.scene = "menu"
+
+    if confirmBox.isPressed():
+        game.settings.annoyingBosses = True
+        game.scene = "settings"
 
     if game.scene == "editor" and game.editor.linkMode:
         linkBox.display()
