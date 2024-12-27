@@ -2496,7 +2496,6 @@ timerBox = u.old_textbox("0:0:0",font18,(20,20),center=False)
 startStopBox = u.old_textbox("Start timer",font18,(20,50),center=False)
 showTimerBox = u.old_textbox("Show timer",font18,(SCRW*0.6,50),tags=["settings"])
 
-
 linkBox = u.old_textbox("Link mode",font18,(SCRW//2,100),tags=["editor"],backgroundCol=colour.red)
 
 boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,levelsBox,settingsBox,
@@ -2842,7 +2841,7 @@ def spike_convert(item,orn=0):
     #return [item[0],item[1],40,30]
 
 def go_quit():
-    game.save_log()
+    #game.save_log()
     game.save_stats()
     pygame.mixer.quit()
     pygame.quit()
@@ -2876,7 +2875,10 @@ def handle_events(move):
 
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                go_quit()
+                if game.scene == "menu":
+                    go_quit()
+                else:
+                    game.scene = "menu"
             elif event.key in game.RESTART:
                 game.restart = True
                 
