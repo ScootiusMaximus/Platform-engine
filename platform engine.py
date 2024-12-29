@@ -166,36 +166,78 @@ class Soundboard:
     def __init__(self):
         self.jump = pygame.mixer.Sound("jump.wav")
         self.fall = pygame.mixer.Sound("fall.wav")
+        self.death = pygame.mixer.Sound("death.wav")
+        self.bossfire = pygame.mixer.Sound("boss fire.wav")
+        self.bomb = pygame.mixer.Sound("bomb.wav")
+        self.fan = pygame.mixer.Sound("fan.wav")
+
+        self.bossfire.set_volume(0.5)
 
         self.musicIdx = 0
         self.music = [
-            pygame.mixer.Sound("Track 1.wav")
+            pygame.mixer.Sound("Track 1.wav"),
+            pygame.mixer.Sound("160_bpm_bassline.wav")
             ]
 
-        self.channels = [pygame.mixer.Channel(0), # fall
-                         pygame.mixer.Channel(1), # music
-                         pygame.mixer.Channel(2)] # jump
+        for song in self.music:
+            song.set_volume(0.5)
+
+        self.channels = []
+        for i in range(8):
+            self.channels.append(pygame.mixer.Channel(i))
+        # 0 - music,
+        # 1 - fall,
+        # 2 - jump and deaths
+        # 3 - bomb
+        # 4 - boss fx
+        # 5 - fan
 
         self.enabled = False
 
     def start_fall(self):
-        if not self.channels[0].get_busy():
-            self.channels[0].play(self.fall,fade_ms=1000)
+        if not self.channels[1].get_busy() and self.enabled:
+            self.channels[1].play(self.fall,fade_ms=3000)
 
     def end_fall(self):
-        self.channels[0].stop()
+        self.channels[1].stop()
 
     def start_jump(self):
-        if not self.channels[2].get_busy():
-            self.channels[2].play(self.jump,fade_ms=1000)
+        if self.enabled:
+            self.channels[2].stop()
+            self.channels[2].play(self.jump)
+
+    def start_bomb(self):
+        if self.enabled:
+            self.channels[3].stop()
+            self.channels[3].play(self.bomb)
+
+    def start_death(self):
+        if self.enabled:
+            self.channels[2].stop()
+            self.channels[2].play(self.death)
 
     def run_music(self):
-        if not self.channels[1].get_busy():
+        if not self.channels[0].get_busy():
             self.musicIdx += 1
             if self.musicIdx >= len(self.music):
                 self.musicIdx = 0
 
-            self.channels[1].play(self.music[self.musicIdx])
+            self.channels[0].play(self.music[self.musicIdx])
+
+    def start_fan(self):
+        if self.enabled and not self.channels[5].get_busy():
+            self.channels[5].play(self.fan)
+
+    def end_fan(self):
+        self.channels[5].stop()
+
+    def boss_fire(self):
+        if self.enabled:
+            self.channels[4].stop()
+            self.channels[4].play(self.bossfire)
+
+    def stop(self,idx):
+        self.channels[idx].stop()
 
 class Level_slots:
     def __init__(self,num):
@@ -890,6 +932,7 @@ class Game:
                 self.bombStates[i][0] = 2
                 bomb = self.bombs[i]
                 self.animations.append(Bomb_Particle(bomb[0],bomb[1]))
+                self.sound.start_bomb()
                 if self.get_dist(self.bombs[i],(self.player.xpos,self.player.ypos)) < self.misc.bombRadius:
                     self.player.isDead = True
                 for mob in self.entities:
@@ -946,6 +989,7 @@ class Game:
                 self.animations.append(Charge_Up(mob.xpos-(mob.width//2), mob.ypos - (mob.height+100)))
             elif mob.state == 3 and mob.firing:
                 mob.projectiles.append(Boss_Projectile(mob.xpos-(mob.width//2),mob.ypos-(mob.height+100),mob.target))
+                self.sound.boss_fire()
 
             for item in mob.projectiles:
                 item.target = mob.target
@@ -958,6 +1002,9 @@ class Game:
                 for plat in self.platforms:
                     if pygame.Rect.colliderect(toRect(plat),toRect((item.xpos,item.ypos,30,30))):
                         item.needsDel = True
+
+        if len(eToDel) != 0 or len(bToDel) != 0:
+            self.sound.start_death()
 
         for mob in eToDel:
             self.stats.enemiesKilled += 1
@@ -973,10 +1020,11 @@ class Game:
         self.player.lastIsDead = self.player.isDead
         self.player.lastYvel = self.player.yvel
 
-        if self.player.yvel > 5 and game.sound.enabled:
+        if self.player.yvel > 20:
             self.sound.start_fall()
         else:
-            self.sound.end_fall()
+            pass
+            #handled in correct_mobs
         
         if not self.player.wallData[0]:
             if abs(self.player.yvel) > self.player.maxYvel:
@@ -1019,15 +1067,15 @@ class Game:
                 if self.player.wallData[0]:
                     self.player.yvel = -20
                     self.player.onFloor = False
-                    if self.sound.enabled: self.sound.start_jump()
+                    self.sound.start_jump()
             if self.player.wallData[1] and self.player.floorMaterial != "ice":
                 self.player.yvel = -20
                 self.player.xvel = 10
-                if self.sound.enabled: self.sound.start_jump()
+                self.sound.start_jump()
             if self.player.wallData[2] and self.player.floorMaterial != "ice":
                 self.player.yvel = -20
                 self.player.xvel = -10
-                if self.sound.enabled: self.sound.start_jump()
+                self.sound.start_jump()
             if self.player.wallData[2] and self.player.wallData[1]:
                 self.player.xvel = 0
             if self.player.wallData[3]:
@@ -1062,6 +1110,7 @@ class Game:
 
         if self.player.isDead and not self.contains_animation("death"):
             if self.enableMovement:
+                self.sound.start_death()
                 self.trigger_death() # has just died
             else:
                 self.reset_player() # has finished animation
@@ -1206,16 +1255,20 @@ class Game:
                     self.stats.stars[str(self.levelIDX)].append(item)
                     self.animations.append(Star_Particle(item[0],item[1],colour.yellow))
 
-        for which in [self.fanColumns]:
-            for item in which:
-                newItem = [item[0],item[1],50,50]
-                if pygame.Rect.colliderect(self.player.hitbox.actWhole,toRect(get_actual_pos(newItem))):
-                    if self.player.yvel >= -10:
-                        self.player.yvel -= 0.5 + self.player.gravity
-                    #if self.player.wallData[0]:
-                    #    self.player.yvel = -1
+        fan = False
+        for item in self.fanColumns:
+            newItem = [item[0],item[1],50,50]
+            if pygame.Rect.colliderect(self.player.hitbox.actWhole,toRect(get_actual_pos(newItem))):
+                self.sound.start_fan()
+                if self.player.yvel >= -10:
+                    self.player.yvel -= 0.5 + self.player.gravity
+                #if self.player.wallData[0]:
+                #    self.player.yvel = -1
 ##                    self.player.ypos -= 10
-                    break
+                fan = True
+                break
+        if not fan:
+            self.sound.end_fan()
 
         end = self.data[str(self.levelIDX)]["end"]
         if pygame.Rect.colliderect(self.player.hitbox.actWhole,
@@ -1274,6 +1327,7 @@ class Game:
             self.player.onFloor = True
             if self.player.lastYvel != 0: # if just landed
                 self.animations.append(Impact_Particle(self.player.xpos,self.player.ypos+14,colour.darkgrey))
+                self.sound.end_fall()
 
         # was here
 
