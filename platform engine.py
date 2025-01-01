@@ -41,6 +41,8 @@ class Images:
         "body_thick":pygame.image.load("body_thick.png"),
         "enemy_body":pygame.image.load("enemy_body.png"),
         "enemy_body_thick" : pygame.image.load("enemy_body_thick.png"),
+        "jumping_enemy_body":pygame.image.load("jumping_enemy_body.png"),
+        "jumping_enemy_body_air" : pygame.image.load("jumping_enemy_body_air.png"),
         "star" : pygame.image.load("star.png"),
         "finish" : pygame.image.load("finish.png"),
         "checkpoint_off" : pygame.image.load("checkpoint_off.png"),
@@ -82,6 +84,12 @@ class Images:
         pygame.draw.circle(blank,colour.white,(22,17),2)
         pygame.draw.circle(blank,colour.black,(20,18),1)
         self.image["enemy_for_editor"] = blank
+        blank = pygame.image.load("jumping_enemy_body_air.png")
+        pygame.draw.circle(blank, colour.white, (20, 15), 10)
+        pygame.draw.circle(blank, colour.black, (20, 16), 7)
+        pygame.draw.circle(blank, colour.white, (22, 17), 2)
+        pygame.draw.circle(blank, colour.black, (20, 18), 1)
+        self.image["jumping_enemy_for_editor"] = blank
 
     def resize_cloud(self,scale):
         self.image["cloud"][str(scale)] = []
@@ -540,8 +548,11 @@ class Game:
         self.spikeDir = []
         self.fanBases = []
         self.fanColumns = []
-        self.mobs = []
-        self.entities = []
+        self.enemies = []
+        self.enemyEntities = []
+        self.jumpingEnemies = []
+        self.jumpingEnemyEntities = []
+        self.stars = []
         self.bosses = []
         self.bossEntities = []
         self.buttons = []
@@ -550,6 +561,7 @@ class Game:
         self.disappearingPlatformLinks = []
         self.appearingPlatforms = []
         self.appearingPlatformLinks = []
+        self.checkpoints = []
         self.bombs = []
         self.bombStates = [] # should be list of [state,time started exploding]
         self.ice = []
@@ -558,6 +570,7 @@ class Game:
         self.events = [False,False]
         # events should be:
         # no enemies left, boss defeated
+        # UNUSED
 
         self.animations = []
         self.spawnPoint = []
@@ -672,13 +685,13 @@ class Game:
                 #for point in points:
                 #    sendToCam(list(point), name="hitbox", col=colour.green)
 
-                if pygame.Rect.colliderect(toRect(points[0]),toRect(plat)):
+                if pygame.Rect.colliderect(points[0],toRect(plat)):
                     bottom = True
-                if pygame.Rect.colliderect(toRect(points[1]),toRect(plat)):
+                if pygame.Rect.colliderect(points[1],toRect(plat)):
                     right = True
-                if pygame.Rect.colliderect(toRect(points[2]),toRect(plat)):
+                if pygame.Rect.colliderect(points[2],toRect(plat)):
                     top = True
-                if pygame.Rect.colliderect(toRect(points[3]),toRect(plat)):
+                if pygame.Rect.colliderect(points[3],toRect(plat)):
                     left = True
 
             if left:
@@ -696,9 +709,9 @@ class Game:
         if what == "spawn enemies":
             for _ in range(5):
                 posMod = make_position_modifier(3,8)
-                self.entities.append(Enemy(self.player.xpos+posMod[0],
-                                          self.player.ypos+posMod[1],
-                                          img=self.img.image["enemy_body"]))
+                self.enemyEntities.append(Enemy(self.player.xpos + posMod[0],
+                                                self.player.ypos + posMod[1],
+                                                img=self.img.image["enemy_body"]))
         elif what == "rgb":
             pass # does this in the draw_gradient()
 
@@ -722,19 +735,19 @@ class Game:
 
         elif what == "speed":
             self.player.maxXvel = 20
-            for which in [self.bossEntities,self.entities]:
+            for which in [self.bossEntities, self.enemyEntities]:
                 for item in which:
                     item.maxXvel = 10
 
         elif what == "low gravity":
             self.player.gravity = 0.5
-            for which in [self.bossEntities,self.entities]:
+            for which in [self.bossEntities, self.enemyEntities]:
                 for item in which:
                     item.gravity = 0.5
 
         elif what == "thick":
             self.player.update_image(self.img.image["body_thick"])
-            for item in self.entities:
+            for item in self.enemyEntities:
                 item.update_image(self.img.image["enemy_body_thick"])
             for item in self.bossEntities:
                 item.update_image(self.img.image["boss_img_thick"])
@@ -750,18 +763,18 @@ class Game:
         self.chaos.reset()
 
         self.player.update_image(self.img.image["body"])
-        for item in self.entities:
+        for item in self.enemyEntities:
             item.update_image(self.img.image["enemy_body"])
         for item in self.bossEntities:
             item.update_image(self.img.image["boss_img"])
 
         self.player.gravity = 0.981
-        for which in [self.bossEntities, self.entities]:
+        for which in [self.bossEntities, self.enemyEntities]:
             for item in which:
                 item.gravity = 0.981
 
         self.player.maxXvel = 10
-        for which in [self.bossEntities, self.entities]:
+        for which in [self.bossEntities, self.enemyEntities]:
             for item in which:
                 item.maxXvel = random.randint(4, 6)
 
@@ -918,7 +931,7 @@ class Game:
     def tick_bombs(self):
         for i in range(len(self.bombs)):
             dists = []
-            for which in [self.bossEntities,self.entities,[self.player]]:
+            for which in [self.bossEntities, self.enemyEntities, [self.player]]:
                 for mob in which:
                     dists.append(self.get_dist(self.bombs[i],(mob.xpos,mob.ypos)))
             #print(f"bomb at {self.bombs[i]} state {self.bombStates[i][0]}")
@@ -935,7 +948,7 @@ class Game:
                 self.sound.start_bomb()
                 if self.get_dist(self.bombs[i],(self.player.xpos,self.player.ypos)) < self.misc.bombRadius:
                     self.player.isDead = True
-                for mob in self.entities:
+                for mob in self.enemyEntities:
                     #print(f"[{mob.xpos},{mob.ypos}] to {self.bombs[i]} is {self.get_dist(self.bombs[i],(mob.xpos,mob.ypos))}")
                     if self.get_dist(self.bombs[i],(mob.xpos,mob.ypos)) < self.misc.bombRadius:
                         mob.needsDel = True
@@ -949,7 +962,7 @@ class Game:
 
     def tick_enemies(self):
         eToDel = []
-        for mob in self.entities:
+        for mob in self.enemyEntities:
             if not mob.needsDel:
                 mob.fix_center()
                 mob.tick()
@@ -959,6 +972,19 @@ class Game:
                 mob.pathfind()
             else:
                 eToDel.append(mob)
+
+        jToDel = []
+        for mob in self.jumpingEnemyEntities:
+            if not mob.needsDel:
+                mob.fix_center()
+                mob.draw()
+                mob.update_target((self.player.xpos,self.player.ypos))
+                # mob.check_vision() handled in game.tick()
+                mob.pathfind()
+                mob.tick()
+                mob.update_hitboxes()
+            else:
+                jToDel.append(mob)
 
         bToDel = []
         for mob in self.bossEntities:
@@ -1009,7 +1035,11 @@ class Game:
         for mob in eToDel:
             self.stats.enemiesKilled += 1
             self.animations.append(Impact_Particle(mob.xpos, mob.ypos + 14, colour.red))
-            self.entities.remove(mob)
+            self.enemyEntities.remove(mob)
+        for mob in jToDel:
+            self.stats.enemiesKilled += 1
+            self.animations.append(Impact_Particle(mob.xpos, mob.ypos + 14, colour.red))
+            self.jumpingEnemyEntities.remove(mob)
         for mob in bToDel:
             self.stats.enemiesKilled += 1
             self.stats.bossesKilled += 1
@@ -1049,7 +1079,6 @@ class Game:
             elif self.player.xvel < 0:
                 self.player.xvel = -self.player.maxXvel
 
-            
         if (not self.player.move[1]) and (not self.player.move[2]): # if not pressing l or r
             if self.player.floorMaterial == "ice":
                 self.player.xvel = self.player.xvel * 0.95
@@ -1126,16 +1155,19 @@ class Game:
 
         self.player.wallData = [False,False,False,False,False]
         self.player.hitbox.clear()
-        for mob in self.entities:
+        for mob in self.enemyEntities:
             mob.wallData = [False,False,False,False,False]
             mob.hitbox.clear()
         for mob in self.bossEntities:
             mob.wallData = [False,False,False,False,False]
             mob.hitbox.clear()
+        for mob in self.jumpingEnemyEntities:
+            mob.wallData = [False,False,False,False,False]
+            mob.hitbox.clear()
 
         for item in self.platforms:
             compItem = toRect(get_actual_pos(item))
-            for which in [self.bossEntities, self.entities, [self.player]]:
+            for which in [self.bossEntities, self.enemyEntities, self.jumpingEnemyEntities, [self.player]]:
                 for mob in which:
                     if pygame.Rect.colliderect(mob.hitbox.actBottom,compItem):
                         mob.wallData[0] = True
@@ -1158,7 +1190,7 @@ class Game:
 
         for item in self.ice:
             compItem = toRect(get_actual_pos(item))
-            for which in [self.bossEntities, self.entities, [self.player]]:
+            for which in [self.bossEntities, self.enemyEntities, [self.player]]:
                 for mob in which:
                     if pygame.Rect.colliderect(mob.hitbox.actBottom,compItem):
                         mob.wallData[0] = True
@@ -1183,7 +1215,7 @@ class Game:
             plat = self.disappearingPlatforms[i]
             compItem = toRect(get_actual_pos(plat))
             if not self.buttonPresses[self.disappearingPlatformLinks[i]]:
-                for which in [self.bossEntities, self.entities, [self.player]]:
+                for which in [self.bossEntities, self.enemyEntities, self.jumpingEnemyEntities,[self.player]]:
                     for mob in which:
                         if pygame.Rect.colliderect(mob.hitbox.actBottom, compItem):
                             mob.wallData[0] = True
@@ -1206,7 +1238,7 @@ class Game:
             plat = self.appearingPlatforms[i]
             compItem = toRect(get_actual_pos(plat))
             if self.buttonPresses[self.appearingPlatformLinks[i]]:
-                for which in [self.bossEntities, self.entities, [self.player]]:
+                for which in [self.bossEntities, self.enemyEntities, self.jumpingEnemyEntities, [self.player]]:
                     for mob in which:
                         if pygame.Rect.colliderect(mob.hitbox.actBottom, compItem):
                             mob.wallData[0] = True
@@ -1225,23 +1257,31 @@ class Game:
                             mob.wallData[4] = True
                             mob.hitbox.collideWhole = plat
 
+        spikeRects = []
         for item in self.spikes:
             orn = self.spikeDir[self.spikes.index(item)]
-            spike = toRect(get_actual_pos(spike_convert(item,orn)))
+            actualSpike = spike_convert(item,orn)
+            spike = toRect(get_actual_pos(actualSpike))
+            spikeRects.append(actualSpike)
             if pygame.Rect.colliderect(self.player.hitbox.actWhole,spike):
                 self.player.isDead = True
                 #self.trigger_death()
                 break
 
-            for mob in self.entities:
-                if pygame.Rect.colliderect(mob.hitbox.actWhole,spike):
-                    mob.needsDel = True
+            for which in [self.enemyEntities,self.jumpingEnemyEntities]:
+                for mob in which:
+                    if pygame.Rect.colliderect(mob.hitbox.actWhole,spike):
+                        mob.needsDel = True
 
             for mob in self.bossEntities:
                 if pygame.Rect.colliderect(mob.hitbox.actWhole,spike):
                     mob.health -= 1
                     if not self.contains_animation("code particle"):
                         self.animations.append(Code_Particle(mob.xpos - 250 + random.randint(-100, 100), mob.ypos + 14, self.img.image["code"]))
+
+        for mob in self.jumpingEnemyEntities:
+            if not mob.needsDel:
+                mob.check_vision(spikeRects)
 
         for item in self.checkpoints:
             if pygame.Rect.colliderect(self.player.hitbox.actWhole,get_actual_pos((item[0],item[1],50,50))):
@@ -1275,7 +1315,7 @@ class Game:
                     toRect(get_actual_pos([end[0],end[1],50,50]))):
             self.player.atFinish = True
 
-        for which in [self.bossEntities, self.entities]:
+        for which in [self.bossEntities, self.enemyEntities, self.jumpingEnemyEntities]:
             for mob in which:
                 if pygame.Rect.colliderect(mob.hitbox.actWhole,self.player.hitbox.actWhole):
                     self.player.isDead = True
@@ -1285,7 +1325,7 @@ class Game:
 
         for item in self.buttons:
             press = []
-            for which in [self.bossEntities,self.entities,[self.player]]:
+            for which in [self.bossEntities, self.enemyEntities, [self.player]]:
                 for mob in which:
                     press.append(pygame.Rect.colliderect(mob.hitbox.actWhole,get_actual_pos((item[0],item[1],50,50))))
 
@@ -1313,6 +1353,7 @@ class Game:
             self.player.yvel = 0
             #self.player.ypos = ((self.player.ypos//50)*50) + (self.player.height//2) + 10
             self.player.ypos = (self.player.hitbox.collideTop[1] + self.player.hitbox.collideTop[3] + (self.player.height//2))
+            # BEHOLD THE BANE OF MY EXISTENCE ^
 
         if self.player.wallData[3] and self.player.yvel > 0:  # if clipping through ground
             #self.player.ypos -= 50
@@ -1329,14 +1370,13 @@ class Game:
                 self.animations.append(Impact_Particle(self.player.xpos,self.player.ypos+14,colour.darkgrey))
                 self.sound.end_fall()
 
-        # was here
-
-        for enemy in self.entities:
-            if enemy.wallData[0] and enemy.yvel == 0:
-                enemy.ypos = enemy.hitbox.collideBottom[1] - enemy.height//2 -9
-                if enemy.lastYvel != 0:
-                    self.animations.append(Impact_Particle(enemy.xpos,enemy.ypos+14,colour.darkgrey))
-                    #print(f"last:{enemy.lastYvel} now {enemy.yvel}")
+        for which in [self.enemyEntities, self.jumpingEnemyEntities]:
+            for enemy in which:
+                if enemy.wallData[0] and enemy.yvel == 0:
+                    enemy.onFloor = True
+                    enemy.ypos = enemy.hitbox.collideBottom[1] - enemy.height//2 -9
+                    if enemy.lastYvel != 0:
+                        self.animations.append(Impact_Particle(enemy.xpos,enemy.ypos+14,colour.darkgrey))
 
         for enemy in self.bossEntities:
             if enemy.wallData[0]:# and enemy.yvel == 0:
@@ -1356,8 +1396,10 @@ class Game:
         self.fanBases = []
         self.fanColumns = []
         self.stars = []
-        self.mobs = []
-        self.entities = []
+        self.enemies = []
+        self.enemyEntities = []
+        self.jumpingEnemies = []
+        self.jumpingEnemyEntities = []
         self.checkpoints = []
         self.bosses = []
         self.bossEntities = []
@@ -1395,6 +1437,8 @@ class Game:
                 self.data[str(self.levelIDX)]["stars"] = []
             if "mobs" not in self.data[str(self.levelIDX)]:
                 self.data[str(self.levelIDX)]["mobs"] = []
+            if "jumping mobs" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["jumping mobs"] = []
             if "checkpoints" not in self.data[str(self.levelIDX)]:
                 self.data[str(self.levelIDX)]["checkpoints"] = []
             if "bosses" not in self.data[str(self.levelIDX)]:
@@ -1424,6 +1468,7 @@ class Game:
                 "fan columns":[],
                 "stars":[],
                 "mobs":[],
+                "jumping mobs":[],
                 "checkpoints":[],
                 "bosses":[],
                 "buttons":[],
@@ -1446,8 +1491,12 @@ class Game:
         for item in self.data[str(self.levelIDX)]["stars"]:
             self.stars.append([item[0],item[1]])
         for item in self.data[str(self.levelIDX)]["mobs"]:
-            self.mobs.append([item[0],item[1]])
-            self.entities.append(Enemy(item[0]+20,item[1],img=self.img.image["enemy_body"],maxXvel=random.randint(4,6)))
+            self.enemies.append([item[0], item[1]])
+            self.enemyEntities.append(Enemy(item[0] + 20, item[1], img=self.img.image["enemy_body"], maxXvel=random.randint(4, 6)))
+        for item in self.data[str(self.levelIDX)]["jumping mobs"]:
+            self.jumpingEnemies.append([item[0], item[1]])
+            self.jumpingEnemyEntities.append(
+                Jumping_Enemy(item[0] + 20, item[1], img=[self.img.image["jumping_enemy_body"],self.img.image["jumping_enemy_body_air"]], maxXvel=random.randint(4, 6)))
         for item in self.data[str(self.levelIDX)]["checkpoints"]:
             self.checkpoints.append([item[0],item[1]])
         for item in self.data[str(self.levelIDX)]["bosses"]:
@@ -1471,7 +1520,6 @@ class Game:
                 self.disappearingPlatformLinks[i] = self.data[str(self.levelIDX)]["disappearing platform links"][i]
             except IndexError:
                 pass
-
         for item in self.data[str(self.levelIDX)]["appearing platforms"]:
             self.appearingPlatforms.append(item)
             self.appearingPlatformLinks.append(-1)
@@ -1552,6 +1600,9 @@ class Game:
             for item in self.data[str(self.levelIDX)]["mobs"]:
                 blitToCam(self.img.image["enemy_for_editor"],(item[0]+5,item[1]+5))
 
+            for item in self.data[str(self.levelIDX)]["jumping mobs"]:
+                blitToCam(self.img.image["jumping_enemy_for_editor"],(item[0]+5,item[1]+5))
+
             for item in self.data[str(self.levelIDX)]["bosses"]:
                 blitToCam(self.img.image["boss_img"],(item[0]-200,item[1]-200))
 
@@ -1602,19 +1653,21 @@ class Game:
         # fan column
         SCREEN.blit(self.img.image["enemy_for_editor"],(15,370+scr))
         # enemy
-        SCREEN.blit(self.img.image["checkpoint_on"],(10,425+scr))
+        SCREEN.blit(self.img.image["jumping_enemy_for_editor"],(15,430+scr))
+        # enemy
+        SCREEN.blit(self.img.image["checkpoint_on"],(10,485+scr))
         # checkpoint
-        SCREEN.blit(self.img.image["boss_menu"],(10,485+scr))
+        SCREEN.blit(self.img.image["boss_menu"],(10,545+scr))
         # boss
-        SCREEN.blit(self.img.image["button_unpressed"], (10, 540+scr))
+        SCREEN.blit(self.img.image["button_unpressed"], (10, 600+scr))
         # button
-        pygame.draw.rect(SCREEN, colour.darkgrey, (10, 625 + scr, 50, 10))
-        # platform icon
         pygame.draw.rect(SCREEN, colour.darkgrey, (10, 685 + scr, 50, 10))
         # platform icon
-        SCREEN.blit(self.img.image["bomb_lit"],(10,725+scr))
+        pygame.draw.rect(SCREEN, colour.darkgrey, (10, 745 + scr, 50, 10))
+        # platform icon
+        SCREEN.blit(self.img.image["bomb_lit"],(10,785+scr))
         #bomb
-        SCREEN.blit(self.img.image["ice"],(10,785+scr))
+        SCREEN.blit(self.img.image["ice"],(10,845+scr))
         # ice
 
     def check_selected(self):
@@ -1770,6 +1823,9 @@ class Game:
                     elif self.editor.selected == "enemy":
                         self.data[str(self.levelIDX)]["mobs"].append(truncPos)
 
+                    elif self.editor.selected == "jumping enemy":
+                        self.data[str(self.levelIDX)]["jumping mobs"].append(truncPos)
+
                     elif self.editor.selected == "checkpoint":
                         self.data[str(self.levelIDX)]["checkpoints"].append(truncPos)
 
@@ -1806,10 +1862,15 @@ class Game:
                             self.data[str(self.levelIDX)]["stars"].remove(item)
                             self.stars.remove(item)
 
-                    for item in self.mobs:
+                    for item in self.enemies:
                         if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
                             self.data[str(self.levelIDX)]["mobs"].remove(item)
-                            self.mobs.remove(item)
+                            self.enemies.remove(item)
+
+                    for item in self.jumpingEnemies:
+                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
+                            self.data[str(self.levelIDX)]["jumping mobs"].remove(item)
+                            self.jumpingEnemies.remove(item)
 
                     for item in self.checkpoints:
                         if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
@@ -1872,8 +1933,8 @@ class Editor:
         self.originalItemRects = []
         self.itemRects = []
         self.ref = ["platform","spike","end","fan base",
-                    "fan column","star","enemy","checkpoint",
-                    "boss","button","disappearing platform",
+                    "fan column","star","enemy", "jumping enemy",
+                    "checkpoint","boss","button","disappearing platform",
                     "appearing platform","bomb","ice"]
 
         for i in range(50):
@@ -1919,6 +1980,7 @@ class Physics_Object:
         self.xvel = 0
         self.yvel = 0
         self.floorMaterial = None
+        self.onFloor = False
 
 class Player(Physics_Object):
     def __init__(self,gravity,maxXvel=10,maxYvel=30,img=None):
@@ -1943,7 +2005,6 @@ class Player(Physics_Object):
         self.blinkWait = random.randint(3,6) * 1000
         self.move = [False,False,False,False]
         self.wallData = [False,False,False,False,False]
-        self.onFloor = False
         self.hitbox = Mob_Hitbox()
         try:
             self.update_image(self.img)
@@ -2158,6 +2219,110 @@ class Enemy(Physics_Object):
         self.img = surf
         self.width = self.img.get_width()
         self.height = self.img.get_height()
+
+class Jumping_Enemy(Enemy):
+    def __init__(self,xpos,ypos,maxXvel=5,maxYvel=30,gravity=0.981,img=None):
+        super().__init__(xpos,ypos,maxXvel,maxYvel,gravity,img)
+        self.vision = [
+            toRect(),
+            toRect(),
+            toRect(),
+            toRect(),
+            toRect()
+        ]
+        self.visionResults = [False,False,False,False,False]
+        try:
+            self.update_image(self.img)
+        except:
+            self.width = 20
+            self.height = 20
+
+    def fix_center(self):
+        self.center = [self.xpos-self.width, self.ypos-self.height]
+
+    def pathfind(self):
+        self.canSeeTarget = self.get_dist(self.target) < self.maxTargetDist
+        if self.canSeeTarget:
+            if self.target[0] > self.xpos:
+                if self.visionResults[4]:  # left edge
+                    self.xvel = 2
+                    # if self.visionResults[1]:
+                    #    self.xvel = 0
+                else:
+                    if self.visionResults[3] and self.onFloor:
+                        self.yvel = -15
+                        self.ypos -= 1
+                        self.onFloor = False
+                        #self.hitbox.collideBottom = False
+                        self.hitbox.clear()
+                        self.wallData[0] = False
+                    else:
+                        self.xvel += self.xInc
+
+            elif self.target[0] < self.xpos:
+                if self.visionResults[0]:  # left edge
+                    self.xvel = -2
+                    #if self.visionResults[1]:
+                    #    self.xvel = 0
+                else:
+                    if self.visionResults[1] and self.onFloor:
+                        self.yvel = -15
+                        self.ypos -= 1
+                        self.onFloor = False
+                        #self.hitbox.collideBottom = False
+                        self.hitbox.clear()
+                        self.wallData[0] = False
+                    else:
+                        self.xvel -= self.xInc
+        else:
+            self.xvel = self.xvel * 0.8
+
+    def check_vision(self,spikeList):
+        for i in range(5):
+            self.vision[i] = toRect([(self.center[0] + (50 * (i-2))), self.center[1] - 5, 40,40])
+
+        self.visionResults = [False,False,False,False,False]
+        for i in range(5):
+            for spike in spikeList:
+                if pygame.Rect.colliderect(self.vision[i],spike):
+                    self.visionResults[i] = True
+                    break
+
+        #for i in range(5):
+        #    col = colour.green if self.visionResults[i] else colour.red
+        #    sendToCam(self.vision[i], "hitbox", col)
+
+    def draw(self):
+        blitToCam(self.img[0], self.center)
+        xcorrect = self.center[0] + self.width
+        ycorrect = self.center[1] + self.height - 4
+
+        pygame.draw.circle(SCREEN, colour.white,
+                           ((SCRW // 2) - game.player.xpos + xcorrect, (SCRH // 2) + 5 - game.player.ypos + ycorrect),
+                           10)
+        if self.xvel == 0:
+            pygame.draw.circle(SCREEN, colour.black, (
+            SCRW // 2 - game.player.xpos + xcorrect , (SCRH // 2) + 5 - game.player.ypos + ycorrect), 7)
+            pygame.draw.circle(SCREEN, colour.white, (
+            (SCRW // 2) + 2 - game.player.xpos + xcorrect, (SCRH // 2) + 6 - game.player.ypos + ycorrect), 2)
+            pygame.draw.circle(SCREEN, colour.white, (
+            (SCRW // 2) - game.player.xpos + xcorrect, (SCRH // 2) + 7 - game.player.ypos + ycorrect), 1)
+
+        else:
+            if self.xvel < 0:
+                pygame.draw.circle(SCREEN, colour.black, (
+                (SCRW // 2) - 3 - game.player.xpos + xcorrect, (SCRH // 2) + 5 - game.player.ypos + ycorrect), 7)
+                pygame.draw.circle(SCREEN, colour.white, (
+                (SCRW // 2) - 1 - game.player.xpos + xcorrect, (SCRH // 2) + 6 - game.player.ypos + ycorrect), 2)
+                pygame.draw.circle(SCREEN, colour.white, (
+                (SCRW // 2) - 3 - game.player.xpos + xcorrect, (SCRH // 2) + 7 - game.player.ypos + ycorrect), 1)
+            elif self.xvel > 0:
+                pygame.draw.circle(SCREEN, colour.black, (
+                (SCRW // 2) + 3 - game.player.xpos + xcorrect, (SCRH // 2) + 5 - game.player.ypos + ycorrect), 7)
+                pygame.draw.circle(SCREEN, colour.white, (
+                (SCRW // 2) + 5 - game.player.xpos + xcorrect, (SCRH // 2) + 6 - game.player.ypos + ycorrect), 2)
+                pygame.draw.circle(SCREEN, colour.white, (
+                (SCRW // 2) + 3 - game.player.xpos + xcorrect, (SCRH // 2) + 7 - game.player.ypos + ycorrect), 1)
 
 class Boss(Enemy):
     def __init__(self,xpos,ypos,img,maxXvel=6,maxYvel=50,health=600,gravity=0.981):
