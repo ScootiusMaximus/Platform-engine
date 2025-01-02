@@ -72,12 +72,17 @@ class Images:
         "cloud" : {"1":[pygame.image.load("cloud1.png"),
                           pygame.image.load("cloud2.png"),
                           pygame.image.load("cloud3.png")]},
-        "code" : []
+        "code" : [],
+        "hats":[],
         }
         for i in range(10):
             name = f"code{i+1}.png"
             self.image["code"].append(pygame.image.load(name))
-        
+        #self.image["body"].fill((0,0,0))
+        for i in range(4):
+            name = f"hat{i + 1}.png"
+            self.image["hats"].append(pygame.image.load(name))
+
         blank = pygame.image.load("enemy_body.png")
         pygame.draw.circle(blank,colour.white,(20,15),10)
         pygame.draw.circle(blank,colour.black,(20,16),7)
@@ -526,6 +531,7 @@ class Game:
         self.chaos = Chaos()
         self.achievements = Achievements()
         self.rgb = u.rainbow()
+        self.hats = Hat_Selector(self.img.image["hats"])
 
         self.clouds = []
         self.notifications = []
@@ -1913,6 +1919,19 @@ class Game:
     def get_dist(self,pos1,pos2):
         return math.sqrt((pos1[0]-pos2[0])**2+(pos1[1]-pos2[1])**2)
 
+    def save_asthetics(self,col,hatIDX=-1):
+        #self.player.hat = hatIDX
+        self.player.colour = col
+        if self.player.img is not None:
+            self.player.img.lock()
+            oldCol = self.player.img.get_at((20,20))
+            for x in range(self.player.img.get_width()):
+                for y in range(self.player.img.get_height()):
+                    if self.player.img.get_at((x,y)) == oldCol:
+                        self.player.img.set_at((x,y),col)
+
+            self.player.img.unlock()
+
 class Editor:
     '''a namespace to hold editor data'''
     def __init__(self):
@@ -2005,6 +2024,7 @@ class Player(Physics_Object):
         self.blinkWait = random.randint(3,6) * 1000
         self.move = [False,False,False,False]
         self.wallData = [False,False,False,False,False]
+        self.hat = -1
         self.hitbox = Mob_Hitbox()
         try:
             self.update_image(self.img)
@@ -2231,6 +2251,7 @@ class Jumping_Enemy(Enemy):
             toRect()
         ]
         self.visionResults = [False,False,False,False,False]
+        self.state = 0
         try:
             self.update_image(self.img)
         except:
@@ -2241,6 +2262,7 @@ class Jumping_Enemy(Enemy):
         self.center = [self.xpos-self.width, self.ypos-self.height]
 
     def pathfind(self):
+        self.state = 0 if self.onFloor else 1
         self.canSeeTarget = self.get_dist(self.target) < self.maxTargetDist
         if self.canSeeTarget:
             if self.target[0] > self.xpos:
@@ -2293,9 +2315,9 @@ class Jumping_Enemy(Enemy):
         #    sendToCam(self.vision[i], "hitbox", col)
 
     def draw(self):
-        blitToCam(self.img[0], self.center)
+        blitToCam(self.img[self.state], self.center)
         xcorrect = self.center[0] + self.width
-        ycorrect = self.center[1] + self.height - 4
+        ycorrect = self.center[1] + self.height - 4 - (self.state * 8)
 
         pygame.draw.circle(SCREEN, colour.white,
                            ((SCRW // 2) - game.player.xpos + xcorrect, (SCRH // 2) + 5 - game.player.ypos + ycorrect),
@@ -2670,12 +2692,52 @@ class Transition(Animation):
         if self.frame > SCRH//self.amount:
             self.finished = True
 
+class Hat_Selector:
+    def __init__(self,imgs):
+        self.hats = []
+        self.prices = []
+        self.size = 60
+        self.gap = 20
+        for i in range(len(imgs)):
+            maxsize = max(imgs[i].get_size())
+            self.hats.append(pygame.transform.scale_by(imgs[i],(self.size/maxsize)))
+        self.selected = -1
+        self.rects = []
+        self.pressables = []
+
+        for i in range(len(self.hats)):
+            self.pressables.append(u.Pressable(
+                (SCRW * 0.7) - 5,
+                (self.size + (i * (self.size + self.gap))) - 5,
+                self.size + 10,
+                self.size + 10, mode=2))
+
+    def draw(self):
+        for i in range(len(self.hats)):
+            border = colour.red if i==self.selected else colour.darkgrey
+            pygame.draw.rect(SCREEN, border,
+                             ((SCRW * 0.7) - 5,
+                              (self.size + (i * (self.size + self.gap))) - 5,
+                              self.size + 10,
+                              self.size + 10))
+            pygame.draw.rect(SCREEN, colour.lightgrey,
+                             (SCRW * 0.7,
+                              (self.size + (i * (self.size + self.gap))),
+                              self.size,
+                              self.size))
+            SCREEN.blit(self.hats[i],(SCRW*0.7,(10+self.size+(i*(self.size+self.gap)))))
+
+    def check(self):
+        for i in range(len(self.pressables)):
+            if self.pressables[i].pressed():
+                self.selected = i
+
 ##################################################
 
 
 titleBox = u.old_textbox("PLATFORM GAME",fontTitle,(SCRW//2,150),backgroundCol=None,tags=["menu"])
 startBox = u.old_textbox("PLAY",font28,(SCRW//2,400),oval=True,tags=["menu"])
-menuBox = u.old_textbox("MENU",font18,(SCRW-35,20),oval=True,tags=["ingame","editor","levels","settings","achievements","credits"])
+menuBox = u.old_textbox("MENU",font18,(SCRW-35,20),oval=True,tags=["ingame","editor","levels","settings","achievements","credits","customise"])
 editorBox = u.old_textbox("EDITOR",font18,(SCRW//2,500),oval=True,tags=["menu"])
 levelsBox = u.old_textbox("LEVELS",font18,(SCRW//2,300),oval=True,tags=["menu"])
 selectedBox = u.old_textbox("",font18,(SCRW//2,60),tags=["editor"])
@@ -2715,12 +2777,18 @@ timerBox = u.old_textbox("0:0:0",font18,(20,20),center=False)
 startStopBox = u.old_textbox("Start timer",font18,(20,50),center=False)
 showTimerBox = u.old_textbox("Show timer",font18,(SCRW*0.6,50),tags=["settings"])
 warningTitleBox = u.old_textbox("WARNING",fontTitle,(SCRW//2,150),backgroundCol=None,textCol=colour.red,tags=["warning"])
-wanringMessageBox1 = u.old_textbox("'Annoyinger Bosses' setting is no joke",font18,(SCRW*0.5,300),tags=["warning"],textCol=colour.black,backgroundCol=colour.red)
-wanringMessageBox2 = u.old_textbox("Please save unsaved work before proceeding",font18,(SCRW*0.5,350),tags=["warning"],textCol=colour.black,backgroundCol=colour.red)
+warningMessageBox1 = u.old_textbox("'Annoyinger Bosses' setting is no joke",font18,(SCRW*0.5,300),tags=["warning"],textCol=colour.black,backgroundCol=colour.red)
+warningMessageBox2 = u.old_textbox("Please save unsaved work before proceeding",font18,(SCRW*0.5,350),tags=["warning"],textCol=colour.black,backgroundCol=colour.red)
 confirmBox = u.old_textbox("Continue",font28,(SCRW*0.5,430),oval=True,tags=["warning"],textCol=colour.red)
 cancelBox = u.old_textbox("Cancel",font28,(SCRW*0.5,490),oval=True,tags=["warning"])
+customiseBox = u.old_textbox("Customise player",font18,(SCRW*0.7,400),oval=True,tags=["menu"])
+resetColourBox = u.old_textbox("Reset",font18,(SCRW*0.1,SCRH*0.9),tags=["customise"])
 
 linkBox = u.old_textbox("Link mode",font18,(SCRW//2,100),tags=["editor"],backgroundCol=colour.red)
+
+redSlider = u.Slider(SCRW*0.4,SCRH*0.3,length=150,width=50)
+greenSlider = u.Slider(SCRW*0.4,SCRH*0.5,length=150,width=50)
+blueSlider = u.Slider(SCRW*0.4,SCRH*0.7,length=150,width=50)
 
 boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,levelsBox,
          settingsBox,showFPSBox,statsTitleBox,collectedStarsBox,enemiesDefeatedBox,
@@ -2728,7 +2796,8 @@ boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,le
          highResTexturesBox,chaosModeBox,messageBox,achievementBox,achievementTitleBox,
          creditsTitleBox,creditsBox,credits1,credits2,credits3,credits4,credits5,credits6,
          credits7,credits8,credits9,credits10,credits11,timerBox,startStopBox,showTimerBox,
-         warningTitleBox,wanringMessageBox1,wanringMessageBox2,confirmBox,cancelBox]
+         warningTitleBox,warningMessageBox1,warningMessageBox2,confirmBox,cancelBox,
+         customiseBox,resetColourBox]
 # hard coded textboxes
 
 ##################################################
@@ -2864,7 +2933,7 @@ def reposition_boxes():
     selectedBox.pos = (SCRW//2,60)
     coordBox.pos = (SCRW//3,20)
     levelIDXBox.pos = (SCRW//2,20)
-    settingsBox.pos = (SCRW//1.3,500)
+    settingsBox.pos = (SCRW*0.7,500)
     showFPSBox.pos = (SCRW*0.4,50)
     FPSBox.pos = (SCRW-50,SCRH-50)
     statsTitleBox.pos = (SCRW//2,300)
@@ -2898,6 +2967,12 @@ def reposition_boxes():
     timerBox.pos = (20,20)
     startStopBox.pos = (20,50)
     showTimerBox.pos = (SCRW*0.6,50)
+    customiseBox.pos = (SCRW*0.7,400)
+    resetColourBox.pos = (SCRW*0.1,SCRH*0.9)
+
+    redSlider.move_to(SCRW*0.4,None)
+    greenSlider.move_to(SCRW*0.4,None)
+    blueSlider.move_to(SCRW*0.4,None)
 
     game.editor.linkRect.move_to(SCRW-100,SCRH-100)
 
@@ -2959,6 +3034,8 @@ def tick_boxes():
         if game.scene == "editor":
             game.save()
             game.update_level(next=False)
+        if game.scene == "customise":
+            game.save_asthetics((redSlider.get()*255,greenSlider.get()*255,blueSlider.get()*255))
             
         game.scene = "menu"
         game.reset_player()
@@ -3063,6 +3140,16 @@ def tick_boxes():
     if showTimerBox.isPressed():
         game.misc.showTimer = not game.misc.showTimer
 
+    if customiseBox.isPressed():
+        game.scene = "customise"
+
+    if resetColourBox.isPressed():
+        redSlider.sliderPos = redSlider.xpos + ((r / 255) * redSlider.length)
+        greenSlider.sliderPos = greenSlider.xpos + ((g / 255) * greenSlider.length)
+        blueSlider.sliderPos = blueSlider.xpos + ((b / 255) * blueSlider.length)
+        game.player.hat = -1
+        game.hats.selected = -1
+
 def spike_convert(item,orn=0):
     if orn == 0:
         return [item[0] + 5, item[1] - 30, 40, 30]
@@ -3114,7 +3201,14 @@ def handle_events(move):
                 if game.scene == "menu":
                     go_quit()
                 else:
+                    if game.scene == "editor":
+                        game.save()
+                        game.update_level(next=False)
+                    if game.scene == "customise":
+                        game.save_asthetics((redSlider.get()*255,greenSlider.get()*255,blueSlider.get()*255))
+
                     game.scene = "menu"
+                    game.reset_player()
             elif event.key in game.RESTART:
                 game.restart = True
                 
@@ -3143,6 +3237,11 @@ def handle_events(move):
 img = Images()
 game = Game()
 levelSlots = Level_slots(len(game.data))
+
+r,g,b,a = game.player.colour
+redSlider.sliderPos = redSlider.xpos + ((r/255) * redSlider.length)
+greenSlider.sliderPos = greenSlider.xpos + ((g/255) * greenSlider.length)
+blueSlider.sliderPos = blueSlider.xpos + ((b/255) * blueSlider.length)
 
 SCREEN.fill(colour.black)
 
@@ -3179,6 +3278,9 @@ while True:
         game.player.update_hitboxes()
         if game.enableMovement:
             game.player.draw()
+            if game.player.hat != -1:
+                hat = game.img.image["hats"][game.player.hat]
+                SCREEN.blit(hat,((SCRW-hat.get_width())//2,((SCRH-hat.get_height())//2)-game.player.height+6))
         game.draw_animations()
         
         if game.player.ypos > 5000 or game.player.isDead:
@@ -3278,3 +3380,15 @@ while True:
     elif game.scene == "achievements":
         game.achievements.update_slots()
         game.achievements.show()
+
+    elif game.scene == "customise":
+        for slider in [redSlider,greenSlider,blueSlider]:
+            slider.draw()
+            slider.update()
+
+        col = (redSlider.get()*255,greenSlider.get()*255,blueSlider.get()*255)
+        pygame.draw.rect(SCREEN,col,(SCRW*0.2,SCRH*0.4,SCRH*0.2,SCRH*0.2))
+
+        game.hats.draw()
+        game.hats.check()
+        game.player.hat = game.hats.selected
