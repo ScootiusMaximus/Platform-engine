@@ -79,7 +79,7 @@ class Images:
             name = f"code{i+1}.png"
             self.image["code"].append(pygame.image.load(name))
         #self.image["body"].fill((0,0,0))
-        for i in range(7):
+        for i in range(12):
             name = f"hat{i + 1}.png"
             self.image["hats"].append(pygame.image.load(name))
 
@@ -2696,7 +2696,7 @@ class Hat_Selector:
     def __init__(self,imgs):
         self.hats = []
         self.prices = []
-        self.size = 50
+        self.size = 70
         self.gap = 15
         for i in range(len(imgs)):
             maxsize = max(imgs[i].get_size())
@@ -2706,32 +2706,34 @@ class Hat_Selector:
         self.pressables = []
 
         x = 0
-        ymod = 0
+        y = self.gap
         for i in range(len(self.hats)):
-            y = (self.size + ((i-ymod) * (self.size + self.gap))) - 5
             if y + self.size > SCRH:
-                ymod = i
-                x += self.size + self.gap
+                y = self.gap
+                x += self.gap + self.size
+
             self.pressables.append(u.Pressable(
                 (SCRW * 0.7) - 5 + x,
                 y,
                 self.size + 10,
                 self.size + 10, mode=2))
 
+            y += self.gap + self.size
+
     def draw(self):
+        x = 0
+        y = self.gap
         for i in range(len(self.hats)):
+            if y + self.size > SCRH:
+                y = self.gap
+                x += self.gap + self.size
+
             border = colour.red if i==self.selected else colour.darkgrey
-            pygame.draw.rect(SCREEN, border,
-                             ((SCRW * 0.7) - 5,
-                              (self.size + (i * (self.size + self.gap))) - 5,
-                              self.size + 10,
-                              self.size + 10))
-            pygame.draw.rect(SCREEN, colour.lightgrey,
-                             (SCRW * 0.7,
-                              (self.size + (i * (self.size + self.gap))),
-                              self.size,
-                              self.size))
-            SCREEN.blit(self.hats[i],(SCRW*0.7,(10+self.size+(i*(self.size+self.gap)))))
+            pygame.draw.rect(SCREEN, border,((SCRW * 0.7) - 5 + x,y-5,self.size + 10,self.size + 10))
+            pygame.draw.rect(SCREEN, colour.lightgrey,((SCRW * 0.7) + x,y,self.size,self.size))
+            SCREEN.blit(self.hats[i],((SCRW * 0.7) + x,y))
+
+            y += self.gap + self.size
 
     def check(self):
         for i in range(len(self.pressables)):
