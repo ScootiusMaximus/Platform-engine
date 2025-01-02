@@ -79,7 +79,7 @@ class Images:
             name = f"code{i+1}.png"
             self.image["code"].append(pygame.image.load(name))
         #self.image["body"].fill((0,0,0))
-        for i in range(4):
+        for i in range(7):
             name = f"hat{i + 1}.png"
             self.image["hats"].append(pygame.image.load(name))
 
@@ -2696,8 +2696,8 @@ class Hat_Selector:
     def __init__(self,imgs):
         self.hats = []
         self.prices = []
-        self.size = 60
-        self.gap = 20
+        self.size = 50
+        self.gap = 15
         for i in range(len(imgs)):
             maxsize = max(imgs[i].get_size())
             self.hats.append(pygame.transform.scale_by(imgs[i],(self.size/maxsize)))
@@ -2705,10 +2705,16 @@ class Hat_Selector:
         self.rects = []
         self.pressables = []
 
+        x = 0
+        ymod = 0
         for i in range(len(self.hats)):
+            y = (self.size + ((i-ymod) * (self.size + self.gap))) - 5
+            if y + self.size > SCRH:
+                ymod = i
+                x += self.size + self.gap
             self.pressables.append(u.Pressable(
-                (SCRW * 0.7) - 5,
-                (self.size + (i * (self.size + self.gap))) - 5,
+                (SCRW * 0.7) - 5 + x,
+                y,
                 self.size + 10,
                 self.size + 10, mode=2))
 
