@@ -1,4 +1,6 @@
-import pygame 
+from enum import nonmember
+
+import pygame
 
 mouse = {"left":[False,False],
         "right":[False,False],
@@ -93,12 +95,15 @@ class old_textbox:
         return (pressed)
 
 class Pressable:
-    def __init__(self,xpos,ypos,width,height):
+    def __init__(self,xpos,ypos,width,height,mode=1):
+        '''mode 1 - hover to press
+        mode 2 - click to press'''
         self.xpos = xpos
         self.ypos = ypos
         self.width = width
         self.height = height
         self.canBePressed = True
+        self.mode = mode
 
         self.wasPressed = False
         self.rect = [xpos,ypos,width,height]
@@ -124,15 +129,22 @@ class Pressable:
         except NotImplementedError:
             left, right, up, down = False, False, False, False
 
-        if up and down and left and right: #and pygame.mouse.get_pressed()[0]:
-            if not self.wasPressed:
-                press = True
+        if self.mode == 1:
+            if up and down and left and right: #and pygame.mouse.get_pressed()[0]:
+                if not self.wasPressed:
+                    press = True
+                self.wasPressed = True
+            else:
+                self.wasPressed = False
+        elif self.mode == 2:
+            if up and down and left and right and pygame.mouse.get_pressed()[0]:
+                if not self.wasPressed:
+                    press = True
+                self.wasPressed = True
+            else:
+                self.wasPressed = False
 
-            self.wasPressed = True
-        else:
-            self.wasPressed = False
-
-        return (press)
+        return press
     
 class rainbow:
     def __init__(self):
@@ -186,3 +198,40 @@ class healthBar:
         size = self.width * (self.hp / self.maxhp)
         pygame.draw.rect(SCREEN, self.col,(self.xpos, self.ypos, size, self.height))
         pygame.draw.rect(SCREEN, (255,255,255), (self.xpos, self.ypos, self.width, self.height),width=3)
+
+class Slider:
+    def __init__(self,xpos,ypos,length=100,width=30):
+        self.xpos = xpos
+        self.ypos = ypos
+        self.length = length
+        self.width = width
+        self.sliderPos = self.xpos + self.length
+
+    def move_to(self,xpos=None,ypos=None):
+        if xpos is not None:
+            self.xpos = xpos
+        if ypos is not None:
+            self.ypos = ypos
+
+    def draw(self):
+        pygame.draw.rect(SCREEN,(50,50,50),(self.xpos,self.ypos,self.length,self.width))
+        pygame.draw.rect(SCREEN,(150,150,150),(self.sliderPos,self.ypos-10,15,self.width+20))
+
+    def update(self):
+        left, right, up, down = False, False, False, False
+        if pygame.mouse.get_pos()[0] > self.xpos:
+            left = True
+        if pygame.mouse.get_pos()[0] < self.xpos+self.length:
+            right = True
+        if pygame.mouse.get_pos()[1] > self.ypos:
+            up = True
+        if pygame.mouse.get_pos()[1] < self.ypos+self.width:
+            down = True
+
+        if left and right and up and down:
+            self.sliderPos = pygame.mouse.get_pos()[0]
+
+    def get(self):
+        '''Returns a float between 0 and 1 of the slider's value '''
+        relativePos = self.sliderPos-self.xpos
+        return relativePos / self.length
