@@ -78,8 +78,7 @@ class Images:
         for i in range(10):
             name = f"code{i+1}.png"
             self.image["code"].append(pygame.image.load(name))
-        #self.image["body"].fill((0,0,0))
-        for i in range(12):
+        for i in range(13):
             name = f"hat{i + 1}.png"
             self.image["hats"].append(pygame.image.load(name))
 
@@ -2776,11 +2775,12 @@ credits3 = u.old_textbox("Level design by: Scott Wilson",font18,(SCRW*0.5,260),t
 credits4 = u.old_textbox("Level 15 design: J Pilphott",font18,(SCRW*0.5,290),tags=["credits"],backgroundCol=None)
 credits5 = u.old_textbox("Music by: Scott Wilson",font18,(SCRW*0.5,320),tags=["credits"],backgroundCol=None)
 credits6 = u.old_textbox("Artwork by: Scott Wilson",font18,(SCRW*0.5,350),tags=["credits"],backgroundCol=None)
-credits7 = u.old_textbox("Thank you to Game testers: ",font18,(SCRW*0.5,400),tags=["credits"],backgroundCol=None)
-credits8 = u.old_textbox("Billy Baldwin, Prithvi, Robert Harvey, Esther Walden :D",font18,(SCRW*0.5,430),tags=["credits"],backgroundCol=None)
-credits9 = u.old_textbox("Josephine Baker, Carolyn Kuang, J Pilphott",font18,(SCRW*0.5,450),tags=["credits"],backgroundCol=None)
-credits10 = u.old_textbox("Mihran Khachatryan, Upe Severija Tamosauskaite, Andrei Mocanu",font18,(SCRW*0.5,470),tags=["credits"],backgroundCol=None)
-credits11 = u.old_textbox("Rose Mitchell",font18,(SCRW*0.5,490),tags=["credits"],backgroundCol=None)
+credits7 = u.old_textbox("Hats Artwork by: Rose Mitchell",font18,(SCRW*0.5,380),tags=["credits"],backgroundCol=None)
+credits8 = u.old_textbox("Thank you to Game testers: ",font18,(SCRW*0.5,430),tags=["credits"],backgroundCol=None)
+credits9 = u.old_textbox("Billy Baldwin, Prithvi, Robert Harvey, Esther Walden :D",font18,(SCRW*0.5,460),tags=["credits"],backgroundCol=None)
+credits10 = u.old_textbox("Josephine Baker, Carolyn Kuang, J Pilphott",font18,(SCRW*0.5,480),tags=["credits"],backgroundCol=None)
+credits11 = u.old_textbox("Mihran Khachatryan, Upe Severija Tamosauskaite, Andrei Mocanu",font18,(SCRW*0.5,500),tags=["credits"],backgroundCol=None)
+credits12 = u.old_textbox("Rose Mitchell",font18,(SCRW*0.5,520),tags=["credits"],backgroundCol=None)
 timerBox = u.old_textbox("0:0:0",font18,(20,20),center=False)
 startStopBox = u.old_textbox("Start timer",font18,(20,50),center=False)
 showTimerBox = u.old_textbox("Show timer",font18,(SCRW*0.6,50),tags=["settings"])
@@ -2803,7 +2803,7 @@ boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,le
          deathCountBox,uptimeBox,resetStatsBox,annoyingBossesBox,soundBox,
          highResTexturesBox,chaosModeBox,messageBox,achievementBox,achievementTitleBox,
          creditsTitleBox,creditsBox,credits1,credits2,credits3,credits4,credits5,credits6,
-         credits7,credits8,credits9,credits10,credits11,timerBox,startStopBox,showTimerBox,
+         credits7,credits8,credits9,credits10,credits11,credits12,timerBox,startStopBox,showTimerBox,
          warningTitleBox,warningMessageBox1,warningMessageBox2,confirmBox,cancelBox,
          customiseBox,resetColourBox]
 # hard coded textboxes
@@ -2967,11 +2967,12 @@ def reposition_boxes():
     credits4.pos = (SCRW*0.5,290)
     credits5.pos = (SCRW*0.5,320)
     credits6.pos = (SCRW*0.5,350)
-    credits7.pos = (SCRW*0.5,400)
+    credits7.pos = (SCRW*0.5,380)
     credits8.pos = (SCRW*0.5,430)
-    credits9.pos = (SCRW*0.5,450)
-    credits10.pos = (SCRW*0.5,470)
-    credits11.pos = (SCRW*0.5,490)
+    credits9.pos = (SCRW*0.5,460)
+    credits10.pos = (SCRW*0.5,480)
+    credits11.pos = (SCRW*0.5,500)
+    credits12.pos = (SCRW*0.5,520)
     timerBox.pos = (20,20)
     startStopBox.pos = (20,50)
     showTimerBox.pos = (SCRW*0.6,50)
