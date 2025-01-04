@@ -78,7 +78,7 @@ class Images:
         for i in range(10):
             name = f"code{i+1}.png"
             self.image["code"].append(pygame.image.load(name))
-        for i in range(13):
+        for i in range(16):
             name = f"hat{i + 1}.png"
             self.image["hats"].append(pygame.image.load(name))
 
@@ -2695,7 +2695,7 @@ class Hat_Selector:
     def __init__(self,imgs):
         self.hats = []
         self.prices = []
-        self.size = 70
+        self.size = 58
         self.gap = 15
         for i in range(len(imgs)):
             maxsize = max(imgs[i].get_size())
