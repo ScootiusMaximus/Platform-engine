@@ -1949,14 +1949,14 @@ class Game:
         #self.player.hat = hatIDX
         self.player.colour = col
         if self.player.img is not None:
-            self.player.img.lock()
-            oldCol = self.player.img.get_at((20,20))
-            for x in range(self.player.img.get_width()):
-                for y in range(self.player.img.get_height()):
-                    if self.player.img.get_at((x,y)) == oldCol:
-                        self.player.img.set_at((x,y),col)
-
-            self.player.img.unlock()
+            for which in [self.player.img,self.img.image["body"],self.img.image["body_thick"]]:
+                which.lock()
+                oldCol = which.get_at((20,20))
+                for x in range(which.get_width()):
+                    for y in range(which.get_height()):
+                        if which.get_at((x,y)) == oldCol:
+                            which.set_at((x,y),col)
+                which.unlock()
 
 class Editor:
     '''a namespace to hold editor data'''
@@ -3130,6 +3130,7 @@ def tick_boxes():
         game.stats.deaths = 0
         game.stats.hidden1progress = 0
         game.stats.bossesKilled = 0
+        game.misc.hasinit = False
         #game.stats.playTime = 0
         game.fix_stats_stars()
         for key in game.achievements.achievements:
