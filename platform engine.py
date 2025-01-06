@@ -29,8 +29,10 @@ font10 = pygame.font.SysFont(FONT,FONTSIZEBASE-8)
 font18 = pygame.font.SysFont(FONT,FONTSIZEBASE)
 font28 = pygame.font.SysFont(FONT,FONTSIZEBASE+10)
 font50 = pygame.font.SysFont(FONT,FONTSIZEBASE+32)
+fontDramatic = pygame.font.SysFont("inkfree",FONTSIZEBASE+10)
 fontTitle = pygame.font.SysFont("courier new",70)
 fontTitle.set_bold(True)
+fontDramatic.set_bold(True)
 
 class Images:
     def __init__(self):
@@ -370,6 +372,8 @@ class MiscData:
         self.timerRunning = False
         self.showTimer = False
 
+        self.hasinit = False
+
         self.lastMessageChange = 0
         self.messageState = 0
         self.messages = ["Find me on github! https://github.com/ScootiusMaximus/Platform-engine",
@@ -516,7 +520,7 @@ class Notification:
 class Game:
     def __init__(self):
         self.gravity = 0.981
-        self.scene = "menu"
+        self.scene = "init"
         self.restart = False # if the player presses the restart key
         self.scale = 1
 
@@ -583,8 +587,12 @@ class Game:
         self.load()
         self.update_level()
         self.load_stats()
+        self.load_cache()
         self.fix_stats_stars()
         self.achievements.update_slots()
+        self.save_asthetics(self.player.colour)
+
+        self.scene = "menu" if self.misc.hasinit else "init"
 
     def log(self,message):
         self.logs.append(message)
@@ -920,6 +928,25 @@ class Game:
             info["hidden1"] = self.stats.hidden1progress
             info["bossesKilled"] = self.stats.bossesKilled
             info["fallen"] = self.achievements.achievements["fall1"]
+            file.write(json.dumps(info))
+
+    def load_cache(self):
+        with open("cache.json","r") as file:
+            info = json.load(file)
+        self.player.colour = info["col"]
+        self.player.hat = info["hat"]
+        self.hats.selected = info["hat"]
+        self.misc.hasinit = info["hasinit"]
+
+    def save_cache(self):
+        with open("cache.json", "w") as file:
+            info = {}
+            info["hat"] = self.player.hat
+            info["col"] = (self.player.colour[0],
+                           self.player.colour[1],
+                           self.player.colour[2],
+                           255)
+            info["hasinit"] = self.misc.hasinit
             file.write(json.dumps(info))
 
     def tick_button_platforms(self):
@@ -2739,6 +2766,37 @@ class Hat_Selector:
             if self.pressables[i].pressed():
                 self.selected = i
 
+class First_Story(Animation):
+    def __init__(self):
+        super().__init__(0,0)
+        self.name = "first story"
+        self.interval = 1000
+
+        self.message = [
+            u.old_textbox("Your family has been kidnapped".upper(),fontDramatic,(SCRW*0.5,SCRH*0.3)),
+            u.old_textbox("By an evil game developer".upper(),fontDramatic,(SCRW*0.5,SCRH*0.4)),
+            u.old_textbox("You must rescue them".upper(),fontDramatic,(SCRW*0.5,SCRH*0.3)),
+            u.old_textbox("And get revenge".upper(),fontDramatic,(SCRW*0.5,SCRH*0.4),textCol=colour.red),
+        ]
+        for item in self.message:
+            item.isShowing = True
+
+    def draw(self):
+        SCREEN.fill((0,0,0))
+        if self.frame >= 10:
+            self.message[2].display()
+            self.message[3].display()
+        elif self.frame >= 7:
+            self.message[2].display()
+        elif self.frame >= 4:
+            self.message[0].display()
+            self.message[1].display()
+        elif self.frame >= 1:
+            self.message[0].display()
+
+        if self.frame >= 13:
+            self.finished = True
+
 ##################################################
 
 
@@ -3153,6 +3211,9 @@ def tick_boxes():
         game.scene = "customise"
 
     if resetColourBox.isPressed():
+        r = 0
+        g = 141
+        b = 201
         redSlider.sliderPos = redSlider.xpos + ((r / 255) * redSlider.length)
         greenSlider.sliderPos = greenSlider.xpos + ((g / 255) * greenSlider.length)
         blueSlider.sliderPos = blueSlider.xpos + ((b / 255) * blueSlider.length)
@@ -3175,6 +3236,7 @@ def spike_convert(item,orn=0):
 def go_quit():
     #game.save_log()
     game.save_stats()
+    game.save_cache()
     pygame.mixer.quit()
     pygame.quit()
     sys.exit()
@@ -3255,7 +3317,8 @@ blueSlider.sliderPos = blueSlider.xpos + ((b/255) * blueSlider.length)
 SCREEN.fill(colour.black)
 
 ##################################################
-
+if not game.misc.hasinit:
+    game.animations.append(First_Story())
 
 while True:
     uptime = pygame.time.get_ticks()
@@ -3274,6 +3337,11 @@ while True:
         game.sound.run_music()
 
     #game.log(f"{now()}: ({game.player.xpos},{game.player.ypos})")
+    if game.scene == "init":
+        game.misc.hasinit = True
+        game.draw_animations()
+        if not game.contains_animation("first story"):
+            game.scene = "menu"
 
     if game.scene == "ingame":
         game.draw_gradient()
