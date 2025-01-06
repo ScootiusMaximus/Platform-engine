@@ -208,8 +208,10 @@ class Slider:
         self.sliderPos = self.xpos + self.length
 
     def move_to(self,xpos=None,ypos=None):
+        xdiff = self.xpos - xpos
         if xpos is not None:
             self.xpos = xpos
+            self.sliderPos -= xdiff
         if ypos is not None:
             self.ypos = ypos
 
