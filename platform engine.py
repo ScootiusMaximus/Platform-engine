@@ -535,6 +535,7 @@ class Game:
         self.achievements = Achievements()
         self.rgb = u.rainbow()
         self.hats = Hat_Selector(self.img.image["hats"])
+        self.camerashake = Camerashake()
 
         self.clouds = []
         self.notifications = []
@@ -1048,6 +1049,7 @@ class Game:
             elif mob.state == 3 and mob.firing:
                 mob.projectiles.append(Boss_Projectile(mob.xpos-(mob.width//2),mob.ypos-(mob.height+100),mob.target))
                 self.sound.boss_fire()
+                self.camerashake.add(5)
 
             for item in mob.projectiles:
                 item.target = mob.target
@@ -1987,6 +1989,25 @@ class Editor:
             self.originalItemRects.append((10,y+5,50,50))
             self.itemRects.append((10, y + 5, 50, 50))
 
+class Camerashake:
+    def __init__(self):
+        self.val = 0
+        self.pos = [0,0]
+        self.mod = 0.9
+
+    def add(self,amount):
+        self.val += amount
+
+    def tick(self):
+        self.pos = [random.randint(math.ceil(-self.val),math.ceil(self.val)),
+                    random.randint(math.ceil(-self.val),math.ceil(self.val))]
+        self.val = self.val * self.mod
+        if self.val < 1:
+            self.val = 0
+
+    def get(self):
+        return self.pos
+
 class Mob_Hitbox:
     def __init__(self):
         self.whole = pygame.Rect([0,0,0,0])
@@ -2797,6 +2818,13 @@ class First_Story(Animation):
         if self.frame >= 13:
             self.finished = True
 
+    def tick(self):
+        if now() - self.lastChange > self.interval:
+            self.frame += 1
+            self.lastChange = now()
+            if self.frame in [1,4,7,10]:
+                game.camerashake.add(20)
+
 ##################################################
 
 
@@ -3328,6 +3356,8 @@ while True:
     game.check_achievements(announce=True)
     game.stats.playTime = game.stats.startTime + now()
 
+    SCREEN.blit(SCREEN,game.camerashake.get())
+
     pygame.display.flip()
     SCREEN.fill((200,200,250))
     clock.tick(TICKRATE)
@@ -3339,12 +3369,14 @@ while True:
 
     #game.log(f"{now()}: ({game.player.xpos},{game.player.ypos})")
     if game.scene == "init":
+        game.camerashake.tick()
         game.misc.hasinit = True
         game.draw_animations()
         if not game.contains_animation("first story"):
             game.scene = "menu"
 
     if game.scene == "ingame":
+        game.camerashake.tick()
         game.draw_gradient()
         game.generate_cloud()
         game.draw_bg()
