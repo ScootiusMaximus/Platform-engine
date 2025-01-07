@@ -979,6 +979,7 @@ class Game:
                 bomb = self.bombs[i]
                 self.animations.append(Bomb_Particle(bomb[0],bomb[1]))
                 self.sound.start_bomb()
+                self.camerashake.add(10)
                 if self.get_dist(self.bombs[i],(self.player.xpos,self.player.ypos)) < self.misc.bombRadius:
                     self.player.isDead = True
                 for mob in self.enemyEntities:
@@ -3375,6 +3376,9 @@ while True:
         if not game.contains_animation("first story"):
             game.scene = "menu"
 
+    if game.scene == "menu":
+        game.camerashake.val = 0
+
     if game.scene == "ingame":
         game.camerashake.tick()
         game.draw_gradient()
@@ -3382,9 +3386,9 @@ while True:
         game.draw_bg()
         game.tick_enemies()
         game.tick()
-        #game.log(f"after tick: ({game.player.xpos},{game.player.ypos})")
-        game.correct_mobs() # this one
+        #game.correct_mobs() # this one
         game.tick_player()
+        game.correct_mobs()  # temp?
         game.player.update_hitboxes()
         if game.enableMovement:
             game.player.draw()
