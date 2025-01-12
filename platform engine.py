@@ -80,7 +80,7 @@ class Images:
         for i in range(10):
             name = f"code{i+1}.png"
             self.image["code"].append(pygame.image.load(name))
-        for i in range(16):
+        for i in range(22):
             name = f"hat{i + 1}.png"
             self.image["hats"].append(pygame.image.load(name))
 
@@ -391,7 +391,7 @@ class Chaos:
         self.lastChange = 0
         self.action = 0
         self.actions = ["spawn enemies","rgb","low gravity","speed","random teleport",
-                        "boss fight","thick","invert screen","wonky","bomb strike"]
+                        "boss fight","thick","invert screen","wonky","bomb strike","greyscale"]
 
     def reset(self):
         self.lastChange = now()
@@ -1043,12 +1043,11 @@ class Game:
             if not mob.vulnerable:
                 mob.tick()
                 mob.pathfind()
-
                 #print(f"Boss state: {mob.state}")
             if mob.state == 2:
                 self.animations.append(Charge_Up(mob.xpos-(mob.width//2), mob.ypos - (mob.height+100)))
             elif mob.state == 3 and mob.firing:
-                mob.projectiles.append(Boss_Projectile(mob.xpos-(mob.width//2),mob.ypos-(mob.height+100),mob.target))
+                mob.make_projectile()
                 self.sound.boss_fire()
                 self.camerashake.add(5)
 
@@ -1059,7 +1058,6 @@ class Game:
                         self.end()
                     else:
                         self.player.isDead = True
-                        #self.trigger_death(die=True)
                 for plat in self.platforms:
                     if pygame.Rect.colliderect(toRect(plat),toRect((item.xpos,item.ypos,30,30))):
                         item.needsDel = True
@@ -1536,8 +1534,14 @@ class Game:
             self.checkpoints.append([item[0],item[1]])
         for item in self.data[str(self.levelIDX)]["bosses"]:
             self.bosses.append([item[0]+50,item[1]+50])
-            health = 600 if not self.settings.annoyingBosses else 6000
-            self.bossEntities.append(Boss(item[0]+50,item[1]+50,img=self.img.image["boss_img"],health=health))
+            if self.levelIDX >= 20:
+                health = 800 if not self.settings.annoyingBosses else 8000
+                self.bossEntities.append(Fireball_Boss(item[0]+50,item[1]+50,img=self.img.image["boss_img"],health=health))
+            else:
+                health = 600 if not self.settings.annoyingBosses else 6000
+                self.bossEntities.append(
+                    Boss(item[0] + 50, item[1] + 50, img=self.img.image["boss_img"], health=health))
+
         for item in self.data[str(self.levelIDX)]["buttons"]:
             self.buttons.append([item[0],item[1]])
             self.buttonPresses.append(False)
@@ -2496,7 +2500,19 @@ class Boss(Enemy):
         self.width = self.img.get_width()
         self.height = self.img.get_height()
 
-class Boss_Projectile:
+    def make_projectile(self):
+        self.projectiles.append(Boss_Missile(self.xpos - (self.width // 2), self.ypos - (self.height + 100), self.target))
+
+class Fireball_Boss(Boss):
+    def __init__(self,xpos,ypos,img,maxXvel=8,maxYvel=50,health=800,gravity=0.981):
+        super().__init__(xpos,ypos,img,maxXvel,maxYvel,health,gravity)
+
+    def make_projectile(self):
+        xvel = -5 if self.target[0] < self.xpos else 5
+        for i in range(10):
+            self.projectiles.append(Boss_Fireball(self.xpos - (self.width // 2), self.ypos - (self.height + 100), 1+(xvel*i), 5+(i*-3)))
+
+class Boss_Missile:
     def __init__(self,xpos,ypos,target):
         self.xpos = xpos
         self.ypos = ypos
@@ -2543,6 +2559,39 @@ class Boss_Projectile:
         dx = self.xpos - pos[0]
         dy = self.ypos - pos[1]
         return math.degrees(math.atan2(dy,dx))+180
+
+class Boss_Fireball:
+    def __init__(self,xpos,ypos,xvel,yvel,gravity=0.981):
+        self.xpos = xpos
+        self.ypos = ypos
+        self.xvel = xvel
+        self.yvel = yvel
+        self.needsDel = False
+        self.gravity = gravity
+        self.col = (100,0,0)
+        self.size = 30
+        self.trail = []
+        self.birth = now()
+
+    def tick(self):
+        self.xpos += self.xvel
+        self.ypos += self.yvel
+        self.yvel += self.gravity
+
+        self.trail.append([self.xpos+random.randint(-5,5),self.ypos+random.randint(-5,5)])
+        while len(self.trail) > 15:
+            self.trail.pop(0)
+
+        if now() - self.birth > 3000:
+            self.needsDel = True
+
+        pygame.draw.rect(SCREEN, self.col,
+                         get_screen_pos((self.xpos - self.size // 2, self.ypos - self.size // 2, self.size, self.size)))
+
+        for item in self.trail:
+            size = self.trail.index(item) * 2
+            pygame.draw.rect(SCREEN, self.col,
+                             get_screen_pos((item[0] - self.size // 2, item[0] - self.size // 2, size, size)))
 
 class Animation:
     def __init__(self,xpos,ypos):
@@ -2831,7 +2880,7 @@ class First_Story(Animation):
 
 titleBox = u.old_textbox("PLATFORM GAME",fontTitle,(SCRW//2,150),backgroundCol=None,tags=["menu"])
 startBox = u.old_textbox("PLAY",font28,(SCRW//2,400),oval=True,tags=["menu"])
-menuBox = u.old_textbox("MENU",font18,(SCRW-35,20),oval=True,tags=["ingame","editor","levels","settings","achievements","credits","customise"])
+menuBox = u.old_textbox("MENU",font18,(35,20),oval=True,tags=["ingame","editor","levels","settings","achievements","credits","customise"])
 editorBox = u.old_textbox("EDITOR",font18,(SCRW//2,500),oval=True,tags=["menu"])
 levelsBox = u.old_textbox("LEVELS",font18,(SCRW//2,300),oval=True,tags=["menu"])
 selectedBox = u.old_textbox("",font18,(SCRW//2,60),tags=["editor"])
@@ -3022,7 +3071,7 @@ def reposition_boxes():
 
     titleBox.pos = (SCRW//2,200)
     startBox.pos = (SCRW//2,400)
-    menuBox.pos = (SCRW-35,20)
+    menuBox.pos = (35,20)
     editorBox.pos = (SCRW//2,500)
     levelsBox.pos = (SCRW//2,300)
     selectedBox.pos = (SCRW//2,60)
@@ -3386,9 +3435,9 @@ while True:
         game.draw_bg()
         game.tick_enemies()
         game.tick()
-        #game.correct_mobs() # this one
+        game.correct_mobs() # this one
         game.tick_player()
-        game.correct_mobs()  # temp?
+        #game.correct_mobs()  # temp?
         game.player.update_hitboxes()
         if game.enableMovement:
             game.player.draw()
@@ -3424,6 +3473,9 @@ while True:
         if game.chaos.actions[game.chaos.action] == "wonky":
             invt = pygame.transform.rotate(SCREEN,-10)
             SCREEN.blit(invt,(-50,-15))
+
+        if game.chaos.actions[game.chaos.action] == "greyscale":
+            pygame.transform.grayscale(SCREEN,dest_surface=SCREEN)
 
     elif game.scene == "editor":
         game.draw_gradient()
