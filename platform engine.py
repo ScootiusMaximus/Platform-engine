@@ -97,6 +97,14 @@ class Images:
         pygame.draw.circle(blank, colour.black, (20, 18), 1)
         self.image["jumping_enemy_for_editor"] = blank
 
+        for key in self.image:
+            if key != "cloud":
+                try:
+                    self.image[key] = pygame.Surface.convert_alpha(self.image[key])
+                except TypeError:
+                    for i in range(len(self.image[key])):
+                        self.image[key][i] = pygame.Surface.convert_alpha(self.image[key][i])
+
     def resize_cloud(self,scale):
         self.image["cloud"][str(scale)] = []
         for item in self.image["cloud"]["1"]:
@@ -561,12 +569,12 @@ class Game:
         self.fanBases = []
         self.fanColumns = []
         self.enemies = []
-        self.enemyEntities = []
+        self.enemyEntities = set({})
         self.jumpingEnemies = []
-        self.jumpingEnemyEntities = []
+        self.jumpingEnemyEntities = set({})
         self.stars = []
         self.bosses = []
-        self.bossEntities = []
+        self.bossEntities = set({})
         self.buttons = []
         self.buttonPresses = []
         self.disappearingPlatforms = []
@@ -576,7 +584,7 @@ class Game:
         self.checkpoints = []
         self.bombs = []
         #self.bombStates = [] # should be list of [state,time started exploding]
-        self.bombEntities = []
+        self.bombEntities = set({})
         self.ice = []
         self.iceStates = [] # False = present, True = broken
         self.entities = []
@@ -727,7 +735,7 @@ class Game:
         if what == "spawn enemies":
             for _ in range(5):
                 posMod = make_position_modifier(3,8)
-                self.enemyEntities.append(Enemy(self.player.xpos + posMod[0],
+                self.enemyEntities.add(Enemy(self.player.xpos + posMod[0],
                                                 self.player.ypos + posMod[1],
                                                 img=self.img.image["enemy_body"]))
         elif what == "rgb":
@@ -741,7 +749,7 @@ class Game:
 
         elif what == "boss fight":
             posMod = make_position_modifier(5,10)
-            self.bossEntities.append(Boss(self.player.xpos + posMod[0],
+            self.bossEntities.add(Boss(self.player.xpos + posMod[0],
                                           self.player.ypos + posMod[1],
                                           img=self.img.image["boss_img"],
                                           health=200))
@@ -753,7 +761,7 @@ class Game:
 
         elif what == "speed":
             self.player.maxXvel = 20
-            for which in [self.bossEntities, self.enemyEntities]:
+            for which in [self.bossEntities, self.enemyEntities, self.jumpingEnemyEntities]:
                 for item in which:
                     item.maxXvel = 10
 
@@ -773,7 +781,7 @@ class Game:
         elif what == "bomb strike":
             for _ in range(5):
                 pos = make_position_modifier(1,3)
-                self.bombEntities.append(Bomb(self.player.xpos + pos[0],
+                self.bombEntities.add(Bomb(self.player.xpos + pos[0],
                                    self.player.ypos + pos[1],self.img.image["bomb"],gravity=self.gravity))
 
     def end_chaos(self):
@@ -965,10 +973,9 @@ class Game:
                 self.appearingPlatformLinks[idx] = -1
 
     def tick_bombs(self):
-        for i in range(len(self.bombEntities)):
-            bomb = self.bombEntities[i]
+        for bomb in self.bombEntities:
             dists = []
-            for which in [self.bossEntities, self.enemyEntities, self.jumpingEnemyEntities, [self.player]]:
+            for which in [self.bossEntities, self.enemyEntities, self.jumpingEnemyEntities, {self.player}]:
                 for mob in which:
                     dists.append(self.get_dist((bomb.xpos,bomb.ypos),mob.center))
 
@@ -977,7 +984,7 @@ class Game:
                 bomb.state[0] = 1
                 bomb.state[1] = now()
 
-            if now() - self.bombEntities[i].state[1] > self.misc.bombFuse and self.bombEntities[i].state[0] == 1:
+            if now() - bomb.state[1] > self.misc.bombFuse and bomb.state[0] == 1:
                 # blow up
                 bomb.state[0] = 2
                 self.animations.append(Bomb_Particle(bomb.xpos,bomb.ypos))
@@ -1394,7 +1401,7 @@ class Game:
                          self.enemyEntities,
                          self.jumpingEnemyEntities,
                          self.bombEntities,
-                         [self.player]]
+                         set([self.player])]
         self.tick_bombs()
         self.handle_scene()
         self.handle_platform_collision()
@@ -1472,12 +1479,12 @@ class Game:
         self.fanColumns = []
         self.stars = []
         self.enemies = []
-        self.enemyEntities = []
+        self.enemyEntities = set({})
         self.jumpingEnemies = []
-        self.jumpingEnemyEntities = []
+        self.jumpingEnemyEntities = set({})
         self.checkpoints = []
         self.bosses = []
-        self.bossEntities = []
+        self.bossEntities = set({})
         self.buttons = []
         self.buttonPresses = []
         self.disappearingPlatforms = []
@@ -1485,7 +1492,7 @@ class Game:
         self.appearingPlatforms = []
         self.appearingPlatformLinks = []
         self.bombs = []
-        self.bombEntities = []
+        self.bombEntities = set({})
         self.ice = []
         self.iceStates = []
         self.spawnPoint = []
@@ -1566,10 +1573,10 @@ class Game:
             self.stars.append([item[0],item[1]])
         for item in self.data[str(self.levelIDX)]["mobs"]:
             self.enemies.append([item[0], item[1]])
-            self.enemyEntities.append(Enemy(item[0] + 20, item[1], img=self.img.image["enemy_body"], maxXvel=random.randint(4, 6)))
+            self.enemyEntities.add(Enemy(item[0] + 20, item[1], img=self.img.image["enemy_body"], maxXvel=random.randint(4, 6)))
         for item in self.data[str(self.levelIDX)]["jumping mobs"]:
             self.jumpingEnemies.append([item[0], item[1]])
-            self.jumpingEnemyEntities.append(
+            self.jumpingEnemyEntities.add(
                 Jumping_Enemy(item[0] + 20, item[1], img=[self.img.image["jumping_enemy_body"],self.img.image["jumping_enemy_body_air"]], maxXvel=random.randint(4, 6)))
         for item in self.data[str(self.levelIDX)]["checkpoints"]:
             self.checkpoints.append([item[0],item[1]])
@@ -1577,17 +1584,17 @@ class Game:
             self.bosses.append([item[0]+50,item[1]+50])
             if self.levelIDX >= 20:
                 health = 800 if not self.settings.annoyingBosses else 8000
-                self.bossEntities.append(Fireball_Boss(item[0]+50,item[1]+50,img=self.img.image["boss_img"],health=health))
+                self.bossEntities.add(Fireball_Boss(item[0]+50,item[1]+50,img=self.img.image["boss_img"],health=health))
             else:
                 health = 600 if not self.settings.annoyingBosses else 6000
-                self.bossEntities.append(
+                self.bossEntities.add(
                     Boss(item[0] + 50, item[1] + 50, img=self.img.image["boss_img"], health=health))
         for item in self.data[str(self.levelIDX)]["buttons"]:
             self.buttons.append([item[0],item[1]])
             self.buttonPresses.append(False)
         for item in self.data[str(self.levelIDX)]["bombs"]:
             self.bombs.append(item)
-            self.bombEntities.append(Bomb(item[0],item[1],img=self.img.image["bomb"],gravity=self.gravity))
+            self.bombEntities.add(Bomb(item[0],item[1],img=self.img.image["bomb"],gravity=self.gravity))
         for item in self.data[str(self.levelIDX)]["ice"]:
             self.ice.append(item)
             self.iceStates.append(False)
@@ -1668,11 +1675,11 @@ class Game:
                     if self.buttonPresses[idx]:
                         sendPlatformToCam(item,self.settings.highResTextures,col=(100,150,221),platType="appearing")
 
-            for i in range(len(self.bombEntities)):
-                if self.bombEntities[i].state[0] == 0:
-                    blitToCam(self.img.image["bomb"],[self.bombEntities[i].xpos,self.bombEntities[i].ypos])
-                elif self.bombEntities[i].state[0] == 1:
-                    pos = [self.bombEntities[i].xpos+random.randint(-5,5),self.bombEntities[i].ypos+random.randint(-5,5)]
+            for item in self.bombEntities:
+                if item.state[0] == 0:
+                    blitToCam(self.img.image["bomb"],[item.xpos,item.ypos])
+                elif item.state[0] == 1:
+                    pos = [item.xpos+random.randint(-5,5),item.ypos+random.randint(-5,5)]
                     blitToCam(self.img.image["bomb_lit"],pos)
             
         if self.scene == "editor":
@@ -3182,9 +3189,9 @@ def sendToCam(item,name=None,col=None):
 def blitToCam(item,pos):
     x = (SCRW//2)-game.player.xpos+pos[0]
     y = (SCRH//2)-game.player.ypos+pos[1]
-    w = item.get_height()
-    h = item.get_width()
-    if (x+h > -50 != x < SCRW+50) and (y+w > -50 != y < SCRW+50):
+    h = item.get_height()
+    w = item.get_width()
+    if (x+w > -50 != x < SCRW+50) and (y+h > -50 != y < SCRW+50):
         SCREEN.blit(item,(x,y))
 
 def get_screen_pos(thing):
