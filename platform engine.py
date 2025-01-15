@@ -76,6 +76,10 @@ class Images:
                           pygame.image.load("cloud3.png")]},
         "code" : [],
         "hats":[],
+        #"saw":[pygame.image.load("saw_blade1.png"),pygame.image.load("saw_blade2.png"),],
+        "electric":[pygame.image.load("electric_h_1.png"),pygame.image.load("electric_h_2.png"),
+                    pygame.image.load("electric_v_1.png"),pygame.image.load("electric_v_2.png")],
+        "electric_end":[],
         }
         for i in range(10):
             name = f"code{i+1}.png"
@@ -83,6 +87,9 @@ class Images:
         for i in range(22):
             name = f"hat{i + 1}.png"
             self.image["hats"].append(pygame.image.load(name))
+        for o in ["L","U","R","D"]:
+            for n in ["1","2"]:
+                self.image["electric_end"].append(pygame.image.load(f"electric_end_{o}_{n}.png"))
 
         blank = pygame.image.load("enemy_body.png")
         pygame.draw.circle(blank,colour.white,(20,15),10)
@@ -361,6 +368,10 @@ class MiscData:
         self.fanInterval = 200
         self.fanState = 0
 
+        self.lastElectricChange = 0
+        self.electricInterval = 100
+        self.electricState = 0
+
         self.lastFPSUpdate = 0
         self.FPSUpdateInterval = 200
 
@@ -587,6 +598,10 @@ class Game:
         self.bombEntities = set({})
         self.ice = []
         self.iceStates = [] # False = present, True = broken
+        self.saws = []
+        self.electric = []
+        self.electricStates = []
+        self.electricHitboxes = []
         self.entities = []
 
         self.events = [False,False]
@@ -730,6 +745,50 @@ class Game:
                 direction = 0
 
             self.spikeDir.append(direction)
+
+    def orient_electric(self):
+        # 0 v bottom, 1 v mid, 2 v top, 3 h left, 4 h mid, 5 h right
+        self.electricStates = []
+        for item in self.electric:
+            bottom = False
+            right = False
+            top = False
+            left = False
+            direction = 4
+            points = [pygame.Rect(item[0], item[1]+50, 10, 10),
+                      pygame.Rect(item[0] + 50, item[1], 10, 10),
+                      pygame.Rect(item[0], item[1] - 50, 10, 10),
+                      pygame.Rect(item[0] - 50, item[1], 10, 10)]
+
+            for other in self.electric:
+                if other is not item:
+                    if pygame.Rect.colliderect(points[0],toRect(other)):
+                        bottom = True
+                    if pygame.Rect.colliderect(points[1],toRect(other)):
+                        right = True
+                    if pygame.Rect.colliderect(points[2],toRect(other)):
+                        top = True
+                    if pygame.Rect.colliderect(points[3],toRect(other)):
+                        left = True
+
+            if top:
+                direction = 0
+            if bottom:
+                direction = 2
+            if bottom and top:
+                direction = 1
+            if left:
+                direction = 3
+            if right:
+                direction = 5
+            if left and right:
+                direction = 4
+
+            self.electricStates.append(direction)
+
+        self.electricHitboxes = []
+        for i in range(len(self.electric)):
+            self.electricHitboxes.append(get_electric_hitbox(self.electric[i],self.electricStates[i]))
 
     def start_chaos(self,what):
         if what == "spawn enemies":
@@ -1067,13 +1126,13 @@ class Game:
 
             for item in mob.projectiles:
                 item.target = mob.target
-                if pygame.Rect.colliderect(self.player.hitbox.whole, toRect((item.xpos, item.ypos, 30, 30))):
+                if pygame.Rect.colliderect(self.player.hitbox.whole, toRect([item.xpos, item.ypos, 30, 30])):
                     if self.settings.annoyingBosses:
                         self.end()
                     else:
                         self.player.isDead = True
                 for plat in self.platforms:
-                    if pygame.Rect.colliderect(toRect(plat),toRect((item.xpos,item.ypos,30,30))):
+                    if pygame.Rect.colliderect(toRect(plat),toRect([item.xpos,item.ypos,30,30])):
                         item.needsDel = True
 
         if len(eToDel) != 0 or len(bToDel) != 0:
@@ -1320,7 +1379,6 @@ class Game:
             if pygame.Rect.colliderect(self.player.hitbox.actWhole,spike):
                 self.player.isDead = True
                 #self.trigger_death()
-                break
 
             for which in [self.enemyEntities,self.jumpingEnemyEntities]:
                 for mob in which:
@@ -1332,6 +1390,23 @@ class Game:
                     mob.health -= 1
                     if not self.contains_animation("code particle"):
                         self.animations.append(Code_Particle(mob.xpos - 250 + random.randint(-100, 100), mob.ypos + 14, self.img.image["code"]))
+
+        for item in self.electricHitboxes:
+            electricHitbox = get_actual_pos(item)
+            if pygame.Rect.colliderect(self.player.hitbox.actWhole,electricHitbox):
+                self.player.isDead = True
+
+            for which in [self.enemyEntities, self.jumpingEnemyEntities]:
+                for mob in which:
+                    if pygame.Rect.colliderect(mob.hitbox.actWhole, electricHitbox):
+                        mob.needsDel = True
+
+            for mob in self.bossEntities:
+                if pygame.Rect.colliderect(mob.hitbox.actWhole, electricHitbox):
+                    mob.health -= 1
+                    if not self.contains_animation("code particle"):
+                        self.animations.append(Code_Particle(mob.xpos - 250 + random.randint(-100, 100), mob.ypos + 14,
+                                                             self.img.image["code"]))
 
         for mob in self.jumpingEnemyEntities:
             if not mob.needsDel:
@@ -1401,7 +1476,7 @@ class Game:
                          self.enemyEntities,
                          self.jumpingEnemyEntities,
                          self.bombEntities,
-                         set([self.player])]
+                         {self.player}]
         self.tick_bombs()
         self.handle_scene()
         self.handle_platform_collision()
@@ -1495,6 +1570,9 @@ class Game:
         self.bombEntities = set({})
         self.ice = []
         self.iceStates = []
+        self.electric = []
+        self.electricStates = []
+
         self.spawnPoint = []
 
         self.animations = []
@@ -1538,8 +1616,13 @@ class Game:
                 self.data[str(self.levelIDX)]["bombs"] = []
             if "ice" not in self.data[str(self.levelIDX)]:
                 self.data[str(self.levelIDX)]["ice"] = []
+            if "electric" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["electric"] = []
+            if "saws" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["saws"] = []
 
-        except KeyError: # should only happen if missing the enitre level number
+
+        except KeyError: # should only happen if missing the entire level number
             self.data[str(self.levelIDX)] = {
                 "start":[0,0],
                 "end":[300,0],
@@ -1558,29 +1641,34 @@ class Game:
                 "appearing platforms": [],
                 "appearing platform links":[],
                 "bombs":[],
-                "ice":[]}
+                "ice":[],
+                "electric":[],
+                "saws":[],
+            }
+
+        level = self.data[str(self.levelIDX)]
 
         self.spawnPoint = self.data[str(self.levelIDX)]["start"]
-        for item in self.data[str(self.levelIDX)]["platforms"]:
+        for item in level["platforms"]:
             self.platforms.append(item)
-        for item in self.data[str(self.levelIDX)]["spikes"]:
+        for item in level["spikes"]:
             self.spikes.append([item[0],item[1]])
-        for item in self.data[str(self.levelIDX)]["fan bases"]:
+        for item in level["fan bases"]:
             self.fanBases.append([item[0],item[1]])
-        for item in self.data[str(self.levelIDX)]["fan columns"]:
+        for item in level["fan columns"]:
             self.fanColumns.append([item[0],item[1]])
-        for item in self.data[str(self.levelIDX)]["stars"]:
+        for item in level["stars"]:
             self.stars.append([item[0],item[1]])
-        for item in self.data[str(self.levelIDX)]["mobs"]:
+        for item in level["mobs"]:
             self.enemies.append([item[0], item[1]])
             self.enemyEntities.add(Enemy(item[0] + 20, item[1], img=self.img.image["enemy_body"], maxXvel=random.randint(4, 6)))
-        for item in self.data[str(self.levelIDX)]["jumping mobs"]:
+        for item in level["jumping mobs"]:
             self.jumpingEnemies.append([item[0], item[1]])
             self.jumpingEnemyEntities.add(
                 Jumping_Enemy(item[0] + 20, item[1], img=[self.img.image["jumping_enemy_body"],self.img.image["jumping_enemy_body_air"]], maxXvel=random.randint(4, 6)))
-        for item in self.data[str(self.levelIDX)]["checkpoints"]:
+        for item in level["checkpoints"]:
             self.checkpoints.append([item[0],item[1]])
-        for item in self.data[str(self.levelIDX)]["bosses"]:
+        for item in level["bosses"]:
             self.bosses.append([item[0]+50,item[1]+50])
             if self.levelIDX >= 20:
                 health = 800 if not self.settings.annoyingBosses else 8000
@@ -1589,33 +1677,36 @@ class Game:
                 health = 600 if not self.settings.annoyingBosses else 6000
                 self.bossEntities.add(
                     Boss(item[0] + 50, item[1] + 50, img=self.img.image["boss_img"], health=health))
-        for item in self.data[str(self.levelIDX)]["buttons"]:
+        for item in level["buttons"]:
             self.buttons.append([item[0],item[1]])
             self.buttonPresses.append(False)
-        for item in self.data[str(self.levelIDX)]["bombs"]:
+        for item in level["bombs"]:
             self.bombs.append(item)
             self.bombEntities.add(Bomb(item[0],item[1],img=self.img.image["bomb"],gravity=self.gravity))
-        for item in self.data[str(self.levelIDX)]["ice"]:
+        for item in level["ice"]:
             self.ice.append(item)
             self.iceStates.append(False)
-        for item in self.data[str(self.levelIDX)]["disappearing platforms"]:
+        for item in level["disappearing platforms"]:
             self.disappearingPlatforms.append(item)
             self.disappearingPlatformLinks.append(-1)
-        for i in range(len(self.data[str(self.levelIDX)]["disappearing platform links"])):
+        for i in range(len(level["disappearing platform links"])):
             try:
                 self.disappearingPlatformLinks[i] = self.data[str(self.levelIDX)]["disappearing platform links"][i]
             except IndexError:
                 pass
-        for item in self.data[str(self.levelIDX)]["appearing platforms"]:
+        for item in level["appearing platforms"]:
             self.appearingPlatforms.append(item)
             self.appearingPlatformLinks.append(-1)
-        for i in range(len(self.data[str(self.levelIDX)]["appearing platform links"])):
+        for i in range(len(level["appearing platform links"])):
             try:
                 self.appearingPlatformLinks[i] = self.data[str(self.levelIDX)]["appearing platform links"][i]
             except IndexError:
                 pass
+        for item in level["electric"]:
+            self.electric.append(item)
 
         self.orient_spikes()
+        self.orient_electric()
 
     def draw_bg(self):
         if now() - self.misc.lastFanChange > self.misc.fanInterval:
@@ -1623,27 +1714,31 @@ class Game:
             if self.misc.fanState >= len(self.img.image["fan_column"]):
                 self.misc.fanState = 0
             self.misc.lastFanChange = now()
+        if now() - self.misc.lastElectricChange > self.misc.electricInterval:
+            self.misc.electricState += 1
+            if self.misc.electricState > 1:
+                self.misc.electricState = 0
+            self.misc.lastElectricChange = now()
 
-        # why tf am I getting everything from the json I have them stored in lists whyyyy
         blitToCam(self.img.image["finish"], self.data[str(self.levelIDX)]["end"])  # VERY INEFFICIENT FIX ME
-        for item in self.data[str(self.levelIDX)]["platforms"]:
+        for item in self.platforms:
             sendPlatformToCam(item,self.settings.highResTextures,col=self.misc.platformCol,platType="normal")
-        for i in range(len(self.data[str(self.levelIDX)]["spikes"])):
+        for i in range(len(self.spikes)):
             #print(f"len of spikes {len(self.data[str(self.levelIDX)]["spikes"])}\nlen of spikeDir {len(self.spikeDir)}")
-            sendSpikeToCam(self.data[str(self.levelIDX)]["spikes"][i-1],orn=self.spikeDir[i-1])
+            sendSpikeToCam(self.spikes[i-1],orn=self.spikeDir[i-1])
         #for item in self.spikes:
         #    orn = self.spikeDir[self.spikes.index(item)]
         #    sendToCam(spike_convert(item,orn),"hitbox")
-        for item in self.data[str(self.levelIDX)]["fan bases"]:
+        for item in self.fanBases:
             blitToCam(self.img.image["fan_base"][self.misc.fanState],item)
-        for item in self.data[str(self.levelIDX)]["fan columns"]:
+        for item in self.fanColumns:
             blitToCam(self.img.image["fan_column"][self.misc.fanState],item)
-        for item in self.data[str(self.levelIDX)]["stars"]:
+        for item in self.stars:
             if self.scene == "editor":
                 blitToCam(self.img.image["star"],item)
             if item not in self.stats.stars[str(self.levelIDX)]:
                 blitToCam(self.img.image["star"],item)
-        for item in self.data[str(self.levelIDX)]["checkpoints"]:
+        for item in self.checkpoints:
             if item == self.spawnPoint:
                 blitToCam(self.img.image["checkpoint_on"],item)
             else:
@@ -1651,16 +1746,17 @@ class Game:
         for i in range(len(self.ice)):
             if not self.iceStates[i]:
                 sendPlatformToCam(self.ice[i],self.settings.highResTextures,col=self.misc.platformCol,platType="ice")
-
+        for i in range(len(self.electric)):
+            sendElectricToCam(self.electric[i],self.misc.electricState,self.electricStates[i])
 
         if self.scene == "ingame":
-            for item in self.data[str(self.levelIDX)]["buttons"]:
+            for item in self.buttons:
                 if self.buttonPresses[self.data[str(self.levelIDX)]["buttons"].index(item)]:
                     blitToCam(self.img.image["button_pressed"], item)
                 else:
                     blitToCam(self.img.image["button_unpressed"], item)
 
-            for item in self.data[str(self.levelIDX)]["disappearing platforms"]:
+            for item in self.disappearingPlatforms:
                 plat = self.data[str(self.levelIDX)]["disappearing platforms"].index(item) #index of platform
                 idx = self.disappearingPlatformLinks[plat] # get which button it is linked to
                 #print(f"idx {idx}")
@@ -1668,7 +1764,7 @@ class Game:
                     if not self.buttonPresses[idx]:
                         sendPlatformToCam(item,self.settings.highResTextures,col=(0,25,80),platType="disappearing")
 
-            for item in self.data[str(self.levelIDX)]["appearing platforms"]:
+            for item in self.appearingPlatforms:
                 plat = self.data[str(self.levelIDX)]["appearing platforms"].index(item)
                 idx = self.appearingPlatformLinks[plat]
                 if idx != -1:
@@ -1683,22 +1779,22 @@ class Game:
                     blitToCam(self.img.image["bomb_lit"],pos)
             
         if self.scene == "editor":
-            for item in self.data[str(self.levelIDX)]["mobs"]:
+            for item in self.enemies:
                 blitToCam(self.img.image["enemy_for_editor"],(item[0]+5,item[1]+5))
 
-            for item in self.data[str(self.levelIDX)]["jumping mobs"]:
+            for item in self.jumpingEnemies:
                 blitToCam(self.img.image["jumping_enemy_for_editor"],(item[0]+5,item[1]+5))
 
-            for item in self.data[str(self.levelIDX)]["bosses"]:
-                blitToCam(self.img.image["boss_img"],(item[0]-200,item[1]-200))
+            for item in self.bosses:
+                blitToCam(self.img.image["boss_img"],(item[0]-250,item[1]-250))
 
-            for item in self.data[str(self.levelIDX)]["buttons"]:
+            for item in self.buttons:
                 blitToCam(self.img.image["button_unpressed"], item)
 
-            for item in self.data[str(self.levelIDX)]["disappearing platforms"]:
+            for item in self.disappearingPlatforms:
                 sendPlatformToCam(item,self.settings.highResTextures,platType="disappearing")#, col=[80,80,100])
 
-            for item in self.data[str(self.levelIDX)]["appearing platforms"]:
+            for item in self.appearingPlatforms:
                 sendPlatformToCam(item,self.settings.highResTextures,platType="appearing")#, col=[180,180,200])
 
             for item in self.bombs:
@@ -1755,6 +1851,10 @@ class Game:
         #bomb
         SCREEN.blit(self.img.image["ice"],(10,845+scr))
         # ice
+        SCREEN.blit(self.img.image["saw"][0],(10,905+scr))
+        # saw
+        SCREEN.blit(self.img.image["electric"][0],(10,965+scr))
+        # electric
 
     def check_selected(self):
         mouseRect = toRect(self.editor.mouseRect)
@@ -1924,6 +2024,9 @@ class Game:
                     elif self.editor.selected == "bomb":
                         self.data[str(self.levelIDX)]["bombs"].append(truncPos)
 
+                    elif self.editor.selected == "electric":
+                        self.data[str(self.levelIDX)]["electric"].append(truncPos)
+
                     self.update_level(next=False)
 
                 if self.editor.clicksR == [True,False]: #RMB
@@ -1976,6 +2079,10 @@ class Game:
                     for item in self.bombs:
                         if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
                             self.data[str(self.levelIDX)]["bombs"].remove(item)
+
+                    for item in self.electric:
+                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
+                            self.data[str(self.levelIDX)]["electric"].remove(item)
 
                     self.update_level(next=False)
 
@@ -2034,7 +2141,7 @@ class Editor:
         self.ref = ["platform","spike","end","fan base",
                     "fan column","star","enemy", "jumping enemy",
                     "checkpoint","boss","button","disappearing platform",
-                    "appearing platform","bomb","ice"]
+                    "appearing platform","bomb","ice","electric"]
 
         for i in range(50):
             y = i*60
@@ -3130,6 +3237,7 @@ def sendSpikeToCam(item,orn=0,col=colour.red):
                 (x + (10 * i) - 5, y + 30),
                 (x + (10 * i), y - 5),
                 (x + (10 * i) + 5, y + 30)))
+
     elif orn == 1: # attached to right
         for i in range(5):
             pygame.draw.polygon(SCREEN, col, (
@@ -3153,16 +3261,31 @@ def sendSpikeToCam(item,orn=0,col=colour.red):
 
     return None
 
+def sendElectricToCam(item,state,orn=4):
+    # 0 v bottom, 1 v mid, 2 v top, 3 h left, 4 h mid, 5 h right
+    if orn == 0:
+        blitToCam(img.image["electric_end"][2+state],item)
+    if orn == 1:
+        blitToCam(img.image["electric"][2+state],item)
+    if orn == 2:
+        blitToCam(img.image["electric_end"][6+state],item)
+    if orn == 3:
+        blitToCam(img.image["electric_end"][state],item)
+    if orn == 4:
+        blitToCam(img.image["electric"][state],item)
+    if orn == 5:
+        blitToCam(img.image["electric_end"][4+state],item)
+
 def sendPlatformToCam(item,isHighRes,col=None,platType="normal"):
     if isHighRes:
-        if platType == "normal":
-            image = img.image["rock"]
-        elif platType == "disappearing":
+        if platType == "disappearing":
             image = img.image["disappearing_rock"]
         elif platType == "appearing":
             image = img.image["appearing_rock"]
         elif platType == "ice":
             image = img.image["ice"]
+        else:
+            image = img.image["rock"]
 
         for x in range(int(item[2]//50)):
             for y in range(int(item[3]//50)):
@@ -3206,12 +3329,30 @@ def get_actual_pos(thing):
         thing = [thing[0],thing[1],0,0]
     return [thing[0]+game.player.xpos-(SCRW//2),thing[1]+game.player.ypos-(SCRH//2),thing[2],thing[3]]
 
-def toRect(alist=[0,0,0,0]):
+def get_electric_hitbox(item,orn):
+    # 0 v bottom, 1 v mid, 2 v top, 3 h left, 4 h mid, 5 h right
+    hitbox = []
+    if orn == 0:
+        hitbox = [15+item[0],item[1],20,40]
+    elif orn == 1:
+        hitbox = [15+item[0],item[1],20,50]
+    elif orn == 2:
+        hitbox = [15+item[0],10+item[1],20,40]
+    elif orn == 3:
+        hitbox = [item[0],15+item[1],40,20]
+    elif orn == 4:
+        hitbox = [item[0],15+item[1],50,20]
+    elif orn == 5:
+        hitbox = [10+item[0],15+item[1],40,20]
+
+    return toRect(hitbox)
+
+def toRect(alist=(0,0,0,0)):
     if len(alist) == 4:
         rect = pygame.Rect(alist[0],alist[1],alist[2],alist[3])
     else:
         try:
-            rect = pygame.Rect(alist[0],alist[1],0,0)
+            rect = pygame.Rect(alist[0],alist[1],50,50)
         except:
             rect = pygame.Rect(0,0,0,0)
     return  rect
