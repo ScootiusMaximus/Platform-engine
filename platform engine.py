@@ -76,7 +76,7 @@ class Images:
                           pygame.image.load("cloud3.png")]},
         "code" : [],
         "hats":[],
-        #"saw":[pygame.image.load("saw_blade1.png"),pygame.image.load("saw_blade2.png"),],
+            "saw":[pygame.image.load("saw_blade1.png"),pygame.image.load("saw_blade2.png"),],
         "electric":[pygame.image.load("electric_h_1.png"),pygame.image.load("electric_h_2.png"),
                     pygame.image.load("electric_v_1.png"),pygame.image.load("electric_v_2.png")],
         "electric_end":[],
