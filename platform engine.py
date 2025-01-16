@@ -76,10 +76,11 @@ class Images:
                           pygame.image.load("cloud3.png")]},
         "code" : [],
         "hats":[],
-            "saw":[pygame.image.load("saw_blade1.png"),pygame.image.load("saw_blade2.png"),],
+        "saw":[pygame.image.load("saw_blade1.png"),pygame.image.load("saw_blade2.png"),],
         "electric":[pygame.image.load("electric_h_1.png"),pygame.image.load("electric_h_2.png"),
                     pygame.image.load("electric_v_1.png"),pygame.image.load("electric_v_2.png")],
         "electric_end":[],
+        "zap":[pygame.image.load("zap1.png"),pygame.image.load("zap2.png")],
         }
         for i in range(10):
             name = f"code{i+1}.png"
@@ -912,7 +913,13 @@ class Game:
 
     def trigger_death(self):
         #print("death triggered")
-        self.animations.append(Death_Particle(self.player.xpos,self.player.ypos+14,self.player.colour))
+        particle = None
+        if self.player.deathCause == "electric":
+            particle = Zap_Particle(self.player.xpos-20,self.player.ypos-20,self.img.image["zap"])
+        else:
+            particle = Death_Particle(self.player.xpos,self.player.ypos+14,self.player.colour)
+
+        self.animations.append(particle)
         self.enableMovement = False
         self.stats.deaths += 1
 
@@ -1051,10 +1058,12 @@ class Game:
                 self.camerashake.add(10)
                 if self.get_dist((bomb.xpos,bomb.ypos),(self.player.xpos,self.player.ypos)) < self.misc.bombRadius:
                     self.player.isDead = True
+                    self.player.deathCause = "bomb"
                 for mob in self.enemyEntities:
                     #print(f"[{mob.xpos},{mob.ypos}] to {self.bombs[i]} is {self.get_dist(self.bombs[i],(mob.xpos,mob.ypos))}")
                     if self.get_dist((bomb.xpos,bomb.ypos),(mob.xpos,mob.ypos)) < self.misc.bombRadius:
                         mob.needsDel = True
+                        mob.deathCause = "bomb"
                         #print(f"tried to kill entity at {mob.center}")
                 for mob in self.bossEntities:
                     if self.get_dist((bomb.xpos,bomb.ypos),mob.center) < self.misc.bombRadius + 300:
@@ -1062,6 +1071,7 @@ class Game:
                 for mob in self.jumpingEnemyEntities:
                     if self.get_dist((bomb.xpos,bomb.ypos),(mob.xpos,mob.ypos)) < self.misc.bombRadius:
                         mob.needsDel = True
+                        mob.deathCause = "bomb"
 
                 #for item in self.entities:
                     #print(f"entitiy at {item.center}: {item.needsDel}")
@@ -1378,12 +1388,14 @@ class Game:
             spikeRects.append(actualSpike)
             if pygame.Rect.colliderect(self.player.hitbox.actWhole,spike):
                 self.player.isDead = True
+                self.player.deathCause = "spike"
                 #self.trigger_death()
 
             for which in [self.enemyEntities,self.jumpingEnemyEntities]:
                 for mob in which:
                     if pygame.Rect.colliderect(mob.hitbox.actWhole,spike):
                         mob.needsDel = True
+                        mob.deathCause = "spike"
 
             for mob in self.bossEntities:
                 if pygame.Rect.colliderect(mob.hitbox.actWhole,spike):
@@ -1395,11 +1407,13 @@ class Game:
             electricHitbox = get_actual_pos(item)
             if pygame.Rect.colliderect(self.player.hitbox.actWhole,electricHitbox):
                 self.player.isDead = True
+                self.player.deathCause = "electric"
 
             for which in [self.enemyEntities, self.jumpingEnemyEntities]:
                 for mob in which:
                     if pygame.Rect.colliderect(mob.hitbox.actWhole, electricHitbox):
                         mob.needsDel = True
+                        mob.deathCause = "electric"
 
             for mob in self.bossEntities:
                 if pygame.Rect.colliderect(mob.hitbox.actWhole, electricHitbox):
@@ -1420,6 +1434,7 @@ class Game:
             for mob in which:
                 if pygame.Rect.colliderect(mob.hitbox.actWhole,self.player.hitbox.actWhole):
                     self.player.isDead = True
+                    self.player.deathCause = "enemy"
                     #self.trigger_death()
                     if which == self.bossEntities and self.settings.annoyingBosses:
                         self.end()
@@ -1477,12 +1492,14 @@ class Game:
                          self.jumpingEnemyEntities,
                          self.bombEntities,
                          {self.player}]
+        self.player.deathCause = None
         self.tick_bombs()
-        self.handle_scene()
+        #self.handle_scene()
         self.handle_platform_collision()
         self.handle_spike_collision()
         self.handle_player_enemy_collision()
         self.handle_misc_item_effects()
+        self.handle_scene() # temp
 
     def draw_animations(self):
         toDel = []
@@ -2233,6 +2250,7 @@ class Player(Physics_Object):
         self.xInc = 1
         #self.gravity = gravity
         self.isDead = False
+        self.deathCause = None
         self.lastIsDead = False
         self.atFinish = False
         self.width = 0
@@ -2367,6 +2385,7 @@ class Enemy(Physics_Object):
         self.hitbox = Mob_Hitbox()
         self.width = 0
         self.height = 0
+        self.deathCause = None
 
         try:
             self.update_image(self.img)
@@ -2949,6 +2968,19 @@ class Death_Particle(Animation):
 
         for item in rects:
             pygame.draw.rect(SCREEN,self.col,get_screen_pos(item))
+
+class Zap_Particle(Animation):
+    def __init__(self,xpos,ypos,images):
+        super().__init__(xpos,ypos)
+        self.name = "death"
+        self.interval = 50
+        self.images = images
+
+    def draw(self):
+        if self.frame < 10:
+            blitToCam(self.images[self.frame%2],(self.xpos,self.ypos))
+        if self.frame > 10:
+            self.finished = True
 
 class Star_Particle(Animation):
     def __init__(self,xpos,ypos,col):
