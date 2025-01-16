@@ -1754,6 +1754,7 @@ class Game:
 
         self.orient_spikes()
         self.orient_electric()
+        self.make_button_boxes()
 
     def draw_bg(self):
         if now() - self.misc.lastFanChange > self.misc.fanInterval:
@@ -2148,21 +2149,20 @@ class Game:
                     self.update_level(next=False)
 
     def run_button_boxes(self):
-        if len(self.buttons) != 0 and len(self.editor.buttonIndexBoxes) == 0:
-            # need to make the boxes
-            self.editor.buttonIndexBoxes = []
-            for i in range(len(self.buttons)):
-                pos = (self.buttons[i][0],self.buttons[i][1])
-                newBox = u.old_textbox(f" {i+1} ",font18,pos)
-                #print(f"tried {pos} {type(pos)}")
-                #newBox.pos = pos
-                self.editor.buttonIndexBoxes.append(newBox)
-
         for box in self.editor.buttonIndexBoxes:
             rawPos = get_screen_pos(toRect(box.pos))
             pos = (rawPos[0]+25,rawPos[1]+10)
             boxCopy = u.old_textbox(box.message,font18,pos)
             boxCopy.display()
+
+    def make_button_boxes(self):
+        self.editor.buttonIndexBoxes = []
+        for i in range(len(self.buttons)):
+            pos = (self.buttons[i][0], self.buttons[i][1])
+            newBox = u.old_textbox(f" {i + 1} ", font18, pos)
+            # print(f"tried {pos} {type(pos)}")
+            # newBox.pos = pos
+            self.editor.buttonIndexBoxes.append(newBox)
 
     def get_dist(self,pos1,pos2):
         return math.sqrt((pos1[0]-pos2[0])**2+(pos1[1]-pos2[1])**2)
