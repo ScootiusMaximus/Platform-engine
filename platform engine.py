@@ -913,13 +913,7 @@ class Game:
 
     def trigger_death(self):
         #print("death triggered")
-        particle = None
-        if self.player.deathCause == "electric":
-            particle = Zap_Particle(self.player.xpos-20,self.player.ypos-20,self.img.image["zap"])
-        else:
-            particle = Death_Particle(self.player.xpos,self.player.ypos+14,self.player.colour)
-
-        self.animations.append(particle)
+        self.make_death_particle(self.player,name="death")
         self.enableMovement = False
         self.stats.deaths += 1
 
@@ -927,6 +921,15 @@ class Game:
         #self.player.yvel = 0
                 
         #if not self.contains_animation("death"):
+
+    def make_death_particle(self,obj,name="enemy_death"):
+        particle = None
+        if obj.deathCause == "electric":
+            particle = Zap_Particle(obj.xpos - 20, obj.ypos - 20, self.img.image["zap"],name=name)
+        else:
+            particle = Death_Particle(obj.xpos, obj.ypos + 14, obj.colour,name=name)
+
+        self.animations.append(particle)
 
     def reset_player(self):
         #self.log(f"{now()}\nplayer reset")
@@ -1150,11 +1153,11 @@ class Game:
 
         for mob in eToDel:
             self.stats.enemiesKilled += 1
-            self.animations.append(Impact_Particle(mob.xpos, mob.ypos + 14, colour.red))
+            self.make_death_particle(mob)
             self.enemyEntities.remove(mob)
         for mob in jToDel:
             self.stats.enemiesKilled += 1
-            self.animations.append(Impact_Particle(mob.xpos, mob.ypos + 14, colour.red))
+            self.make_death_particle(mob)
             self.jumpingEnemyEntities.remove(mob)
         for mob in bToDel:
             self.stats.enemiesKilled += 1
@@ -2385,6 +2388,7 @@ class Enemy(Physics_Object):
         self.hitbox = Mob_Hitbox()
         self.width = 0
         self.height = 0
+        self.colour = (237,28,36)
         self.deathCause = None
 
         try:
@@ -2492,6 +2496,7 @@ class Jumping_Enemy(Enemy):
         ]
         self.visionResults = [False,False,False,False,False]
         self.state = 0
+        self.colour = (219,53,31)
         try:
             self.update_image(self.img)
         except:
@@ -2923,11 +2928,11 @@ class Impact_Particle(Animation):
             pygame.draw.rect(SCREEN,self.col,get_screen_pos(item))
 
 class Death_Particle(Animation):
-    def __init__(self,xpos,ypos,col):
+    def __init__(self,xpos,ypos,col,name="death"):
         super().__init__(xpos,ypos)
         self.interval = 50
         self.col = col
-        self.name = "death"
+        self.name = name
         self.size = 20
 
     def draw(self):
@@ -2970,9 +2975,9 @@ class Death_Particle(Animation):
             pygame.draw.rect(SCREEN,self.col,get_screen_pos(item))
 
 class Zap_Particle(Animation):
-    def __init__(self,xpos,ypos,images):
+    def __init__(self,xpos,ypos,images,name="death"):
         super().__init__(xpos,ypos)
-        self.name = "death"
+        self.name = name
         self.interval = 50
         self.images = images
 
