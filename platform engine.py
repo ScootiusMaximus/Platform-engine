@@ -373,6 +373,10 @@ class MiscData:
         self.electricInterval = 100
         self.electricState = 0
 
+        self.lastSawChange = 0
+        self.sawInterval = 50
+        self.sawState = 0
+
         self.lastFPSUpdate = 0
         self.FPSUpdateInterval = 200
 
@@ -926,6 +930,8 @@ class Game:
         particle = None
         if obj.deathCause == "electric":
             particle = Zap_Particle(obj.xpos - 20, obj.ypos - 20, self.img.image["zap"],name=name)
+        elif obj.deathCause == "saw":
+            particle = Chop_Particle(obj.xpos - 20, obj.ypos - 20,obj.colour)
         else:
             particle = Death_Particle(obj.xpos, obj.ypos + 14, obj.colour,name=name)
 
@@ -1425,6 +1431,25 @@ class Game:
                         self.animations.append(Code_Particle(mob.xpos - 250 + random.randint(-100, 100), mob.ypos + 14,
                                                              self.img.image["code"]))
 
+        for item in self.saws:
+            saw = get_actual_pos(toRect([item[0],item[1]+25,50,25]))
+            if pygame.Rect.colliderect(self.player.hitbox.actWhole,saw):
+                self.player.isDead = True
+                self.player.deathCause = "saw"
+
+            for which in [self.enemyEntities, self.jumpingEnemyEntities]:
+                for mob in which:
+                    if pygame.Rect.colliderect(mob.hitbox.actWhole, saw):
+                        mob.needsDel = True
+                        mob.deathCause = "electric"
+
+            for mob in self.bossEntities:
+                if pygame.Rect.colliderect(mob.hitbox.actWhole, saw):
+                    mob.health -= 1
+                    if not self.contains_animation("code particle"):
+                        self.animations.append(Code_Particle(mob.xpos - 250 + random.randint(-100, 100), mob.ypos + 14,
+                                                             self.img.image["code"]))
+
         for mob in self.jumpingEnemyEntities:
             if not mob.needsDel:
                 mob.check_vision(spikeRects)
@@ -1590,6 +1615,7 @@ class Game:
         self.bombEntities = set({})
         self.ice = []
         self.iceStates = []
+        self.saws = []
         self.electric = []
         self.electricStates = []
 
@@ -1722,6 +1748,8 @@ class Game:
                 self.appearingPlatformLinks[i] = self.data[str(self.levelIDX)]["appearing platform links"][i]
             except IndexError:
                 pass
+        for item in level["saws"]:
+            self.saws.append(item)
         for item in level["electric"]:
             self.electric.append(item)
 
@@ -1739,6 +1767,11 @@ class Game:
             if self.misc.electricState > 1:
                 self.misc.electricState = 0
             self.misc.lastElectricChange = now()
+        if now() - self.misc.lastSawChange > self.misc.sawInterval:
+            self.misc.sawState += 1
+            if self.misc.sawState > 1:
+                self.misc.sawState = 0
+            self.misc.lastSawChange = now()
 
         blitToCam(self.img.image["finish"], self.data[str(self.levelIDX)]["end"])  # VERY INEFFICIENT FIX ME
         for item in self.platforms:
@@ -1766,6 +1799,8 @@ class Game:
         for i in range(len(self.ice)):
             if not self.iceStates[i]:
                 sendPlatformToCam(self.ice[i],self.settings.highResTextures,col=self.misc.platformCol,platType="ice")
+        for item in self.saws:
+            blitToCam(self.img.image["saw"][self.misc.sawState], item)
         for i in range(len(self.electric)):
             sendElectricToCam(self.electric[i],self.misc.electricState,self.electricStates[i])
 
@@ -2044,6 +2079,9 @@ class Game:
                     elif self.editor.selected == "bomb":
                         self.data[str(self.levelIDX)]["bombs"].append(truncPos)
 
+                    elif self.editor.selected == "saw":
+                        self.data[str(self.levelIDX)]["saws"].append(truncPos)
+
                     elif self.editor.selected == "electric":
                         self.data[str(self.levelIDX)]["electric"].append(truncPos)
 
@@ -2099,6 +2137,10 @@ class Game:
                     for item in self.bombs:
                         if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
                             self.data[str(self.levelIDX)]["bombs"].remove(item)
+
+                    for item in self.saws:
+                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
+                            self.data[str(self.levelIDX)]["saws"].remove(item)
 
                     for item in self.electric:
                         if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
@@ -2161,7 +2203,7 @@ class Editor:
         self.ref = ["platform","spike","end","fan base",
                     "fan column","star","enemy", "jumping enemy",
                     "checkpoint","boss","button","disappearing platform",
-                    "appearing platform","bomb","ice","electric"]
+                    "appearing platform","bomb","ice","saw","electric"]
 
         for i in range(50):
             y = i*60
@@ -2986,6 +3028,52 @@ class Zap_Particle(Animation):
             blitToCam(self.images[self.frame%2],(self.xpos,self.ypos))
         if self.frame > 10:
             self.finished = True
+
+class Chop_Particle(Animation):
+    def __init__(self,xpos,ypos,col,name="death"):
+        super().__init__(xpos,ypos)
+        self.col = col
+        self.name = name
+        self.interval = 80
+
+    def draw(self):
+        points = []
+        if self.frame == 0:
+            points = [
+                [(0, 0), (25, 0), (25, 50), (0, 50)],
+                [(25, 0), (50, 25), (50, 50), (25, 50)]]
+        if self.frame == 1:
+            points = [
+                [(-5, 5), (20, 0), (25, 45), (0, 50)],
+                [(30, 5), (55, 25), (50, 55), (30, 50)]]
+        if self.frame == 2:
+            points = [
+                [(-15, 15), (0, 0), (20, 45), (0, 50)],
+                [(45, 0), (65, 25), (50, 60), (25, 50)]]
+        if self.frame == 3:
+            points = [
+                [(-20, 30), (0, -5), (20, 40), (0, 50)],
+                [(45, 0), (65, 25), (50, 60), (25, 50)]]
+        if self.frame >= 4:
+            points = [
+                [(-50, 25), (0, 25), (0, 50), (-50, 50)],
+                [(50, 25), (100, 25), (100, 50), (50, 50)]]
+
+        finalPoints = self.convert_points(points)
+        for item in finalPoints:
+            pygame.draw.polygon(SCREEN,self.col,item)
+
+        if self.frame > 10:
+            self.finished = True
+
+    def convert_points(self,shapes):
+        newshapes = []
+        for shape in shapes:
+            newshape = []
+            for vertex in shape:
+                newshape.append( [self.xpos+vertex[0]-game.player.xpos+SCRW//2,self.ypos+vertex[1]-game.player.ypos+SCRH//2])
+            newshapes.append(newshape)
+        return newshapes
 
 class Star_Particle(Animation):
     def __init__(self,xpos,ypos,col):
