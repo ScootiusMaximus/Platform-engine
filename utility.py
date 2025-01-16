@@ -206,6 +206,7 @@ class Slider:
         self.length = length
         self.width = width
         self.sliderPos = self.xpos + self.length
+        self.mouse = {}
 
     def move_to(self,xpos=None,ypos=None):
         xdiff = self.xpos - xpos
@@ -230,10 +231,13 @@ class Slider:
         if pygame.mouse.get_pos()[1] < self.ypos+self.width:
             down = True
 
-        if left and right and up and down:
+        if left and right and up and down and self.mouse["left"][0]:
             self.sliderPos = pygame.mouse.get_pos()[0]
 
     def get(self):
         '''Returns a float between 0 and 1 of the slider's value '''
         relativePos = self.sliderPos-self.xpos
         return relativePos / self.length
+
+    def get_presses(self):
+        self.mouse = mouse

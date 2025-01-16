@@ -927,7 +927,6 @@ class Game:
         #if not self.contains_animation("death"):
 
     def make_death_particle(self,obj,name="enemy_death"):
-        particle = None
         if obj.deathCause == "electric":
             particle = Zap_Particle(obj.xpos - 20, obj.ypos - 20, self.img.image["zap"],name=name)
         elif obj.deathCause == "saw":
@@ -3185,20 +3184,7 @@ class Hat_Selector:
         self.rects = []
         self.pressables = []
 
-        x = 0
-        y = self.gap
-        for i in range(len(self.hats)):
-            if y + self.size > SCRH:
-                y = self.gap
-                x += self.gap + self.size
-
-            self.pressables.append(u.Pressable(
-                (SCRW * 0.7) - 5 + x,
-                y,
-                self.size + 10,
-                self.size + 10, mode=2))
-
-            y += self.gap + self.size
+        self.resize()
 
     def draw(self):
         x = 0
@@ -3212,6 +3198,23 @@ class Hat_Selector:
             pygame.draw.rect(SCREEN, border,((SCRW * 0.7) - 5 + x,y-5,self.size + 10,self.size + 10))
             pygame.draw.rect(SCREEN, colour.lightgrey,((SCRW * 0.7) + x,y,self.size,self.size))
             SCREEN.blit(self.hats[i],((SCRW * 0.7) + x,y))
+
+            y += self.gap + self.size
+
+    def resize(self):
+        self.pressables = []
+        x = 0
+        y = self.gap
+        for i in range(len(self.hats)):
+            if y + self.size > SCRH:
+                y = self.gap
+                x += self.gap + self.size
+
+            self.pressables.append(u.Pressable(
+                (SCRW * 0.7) - 5 + x,
+                y,
+                self.size + 10,
+                self.size + 10, mode=2))
 
             y += self.gap + self.size
 
@@ -3537,6 +3540,7 @@ def reposition_boxes():
     blueSlider.move_to(SCRW*0.4,None)
 
     game.editor.linkRect.move_to(SCRW-100,SCRH-100)
+    game.hats.resize()
 
 def tick_boxes():
     for item in boxes:
@@ -3971,6 +3975,7 @@ while True:
 
     elif game.scene == "customise":
         for slider in [redSlider,greenSlider,blueSlider]:
+            slider.get_presses()
             slider.draw()
             slider.update()
 
