@@ -9,6 +9,7 @@ import sys
 import utility as u
 import webbrowser as w
 
+sys.path.append(f"{sys.path[0]}/assets")
 
 SCRW = 800
 SCRH = 600
@@ -36,13 +37,19 @@ fontDramatic.set_bold(True)
 
 class Images:
     def __init__(self):
-        #self.fanBase = pygame.image.load("fan base.png")
-        #self.fanColumn = pygame.image.load("fan column.png")
         self.image = {
         "body":pygame.image.load("body.png"),
         "body_thick":pygame.image.load("body_thick.png"),
         "enemy_body":pygame.image.load("enemy_body.png"),
         "enemy_body_thick" : pygame.image.load("enemy_body_thick.png"),
+        "enemy_body_spike": pygame.image.load("enemy_body_spike.png"),
+        "enemy_body_spike_thick": pygame.image.load("enemy_body_spike_thick.png"),
+        "enemy_body_bomb":pygame.image.load("enemy_body_bomb.png"),
+        "enemy_body_bomb_thick" : pygame.image.load("enemy_body_bomb_thick.png"),
+        "enemy_body_electric":pygame.image.load("enemy_body_electric.png"),
+        "enemy_body_electric_thick" : pygame.image.load("enemy_body_electric_thick.png"),
+        "enemy_body_saw": pygame.image.load("enemy_body_saw.png"),
+        "enemy_body_saw_thick": pygame.image.load("enemy_body_saw_thick.png"),
         "jumping_enemy_body":pygame.image.load("jumping_enemy_body.png"),
         "jumping_enemy_body_air" : pygame.image.load("jumping_enemy_body_air.png"),
         "star" : pygame.image.load("star.png"),
@@ -56,6 +63,8 @@ class Images:
         "button_unpressed" : pygame.image.load("button_unpressed.png"),
         "button_pressed" : pygame.image.load("button_pressed.png"),
         "link" : pygame.image.load("link.png"),
+        "enemy_type":pygame.image.load("enemy_type.png"),
+        "build":pygame.image.load("build.png"),
         "rock" : pygame.image.load("rock.png"),
         "disappearing_rock" : pygame.image.load("disappearing_rock.png"),
         "appearing_rock" : pygame.image.load("appearing_rock.png"),
@@ -92,12 +101,18 @@ class Images:
             for n in ["1","2"]:
                 self.image["electric_end"].append(pygame.image.load(f"electric_end_{o}_{n}.png"))
 
-        blank = pygame.image.load("enemy_body.png")
-        pygame.draw.circle(blank,colour.white,(20,15),10)
-        pygame.draw.circle(blank,colour.black,(20,16),7)
-        pygame.draw.circle(blank,colour.white,(22,17),2)
-        pygame.draw.circle(blank,colour.black,(20,18),1)
-        self.image["enemy_for_editor"] = blank
+        for each in [("enemy_for_editor","enemy_body"),
+                      ("enemy_spike_for_editor","enemy_body_spike"),
+                       ("enemy_bomb_for_editor","enemy_body_bomb"),
+                        ("enemy_electric_for_editor","enemy_body_electric"),
+                         ("enemy_saw_for_editor","enemy_body_saw")]:
+            copy = self.image[each[1]].copy()
+            pygame.draw.circle(copy,colour.white,(20,15),10)
+            pygame.draw.circle(copy,colour.black,(20,16),7)
+            pygame.draw.circle(copy,colour.white,(22,17),2)
+            pygame.draw.circle(copy,colour.black,(20,18),1)
+            self.image[each[0]] = copy
+
         blank = pygame.image.load("jumping_enemy_body_air.png")
         pygame.draw.circle(blank, colour.white, (20, 15), 10)
         pygame.draw.circle(blank, colour.black, (20, 16), 7)
@@ -936,6 +951,19 @@ class Game:
 
         self.animations.append(particle)
 
+    def make_enemy(self,xpos,ypos,resistType="none",gravity=0.981,maxXvel=5,maxYvel=30):
+        if resistType == "electric":
+            image = self.img.image["enemy_body_electric"]
+        elif resistType == "spike":
+            image = self.img.image["enemy_body_spike"]
+        elif resistType == "bomb":
+            image = self.img.image["enemy_body_bomb"]
+        elif resistType == "saw":
+            image = self.img.image["enemy_body_saw"]
+        else:
+            image = self.img.image["enemy_body"]
+        return Enemy(xpos,ypos,maxXvel,maxYvel,gravity,image,resist=resistType)
+
     def reset_player(self):
         #self.log(f"{now()}\nplayer reset")
         #self.log(f"Before: Player pos {(self.player.xpos,self.player.ypos)}\n"
@@ -1053,7 +1081,7 @@ class Game:
                 for mob in which:
                     dists.append(self.get_dist((bomb.xpos,bomb.ypos),mob.center))
 
-            #dist =  if which == self.bossEntities else self.misc.bombRadius
+            #dist = if which == self.bossEntities else self.misc.bombRadius
             if min(dists) < self.misc.bombRadius and bomb.state[0] == 0:
                 bomb.state[0] = 1
                 bomb.state[1] = now()
@@ -1069,7 +1097,7 @@ class Game:
                     self.player.deathCause = "bomb"
                 for mob in self.enemyEntities:
                     #print(f"[{mob.xpos},{mob.ypos}] to {self.bombs[i]} is {self.get_dist(self.bombs[i],(mob.xpos,mob.ypos))}")
-                    if self.get_dist((bomb.xpos,bomb.ypos),(mob.xpos,mob.ypos)) < self.misc.bombRadius:
+                    if self.get_dist((bomb.xpos,bomb.ypos),(mob.xpos,mob.ypos)) < self.misc.bombRadius and mob.resist != "bomb":
                         mob.needsDel = True
                         mob.deathCause = "bomb"
                         #print(f"tried to kill entity at {mob.center}")
@@ -1401,7 +1429,7 @@ class Game:
 
             for which in [self.enemyEntities,self.jumpingEnemyEntities]:
                 for mob in which:
-                    if pygame.Rect.colliderect(mob.hitbox.actWhole,spike):
+                    if pygame.Rect.colliderect(mob.hitbox.actWhole,spike) and mob.resist != "spike":
                         mob.needsDel = True
                         mob.deathCause = "spike"
 
@@ -1419,7 +1447,7 @@ class Game:
 
             for which in [self.enemyEntities, self.jumpingEnemyEntities]:
                 for mob in which:
-                    if pygame.Rect.colliderect(mob.hitbox.actWhole, electricHitbox):
+                    if pygame.Rect.colliderect(mob.hitbox.actWhole, electricHitbox) and mob.resist != "electric":
                         mob.needsDel = True
                         mob.deathCause = "electric"
 
@@ -1438,7 +1466,7 @@ class Game:
 
             for which in [self.enemyEntities, self.jumpingEnemyEntities]:
                 for mob in which:
-                    if pygame.Rect.colliderect(mob.hitbox.actWhole, saw):
+                    if pygame.Rect.colliderect(mob.hitbox.actWhole, saw) and mob.resist != "saw":
                         mob.needsDel = True
                         mob.deathCause = "electric"
 
@@ -1641,6 +1669,8 @@ class Game:
                 self.data[str(self.levelIDX)]["stars"] = []
             if "mobs" not in self.data[str(self.levelIDX)]:
                 self.data[str(self.levelIDX)]["mobs"] = []
+            if "resist types" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["resist types"] = []
             if "jumping mobs" not in self.data[str(self.levelIDX)]:
                 self.data[str(self.levelIDX)]["jumping mobs"] = []
             if "checkpoints" not in self.data[str(self.levelIDX)]:
@@ -1666,7 +1696,6 @@ class Game:
             if "saws" not in self.data[str(self.levelIDX)]:
                 self.data[str(self.levelIDX)]["saws"] = []
 
-
         except KeyError: # should only happen if missing the entire level number
             self.data[str(self.levelIDX)] = {
                 "start":[0,0],
@@ -1677,6 +1706,7 @@ class Game:
                 "fan columns":[],
                 "stars":[],
                 "mobs":[],
+                "resist types":[],
                 "jumping mobs":[],
                 "checkpoints":[],
                 "bosses":[],
@@ -1704,9 +1734,15 @@ class Game:
             self.fanColumns.append([item[0],item[1]])
         for item in level["stars"]:
             self.stars.append([item[0],item[1]])
-        for item in level["mobs"]:
+        for i in range(len(level["mobs"])):
+            item = level["mobs"][i]
             self.enemies.append([item[0], item[1]])
-            self.enemyEntities.add(Enemy(item[0] + 20, item[1], img=self.img.image["enemy_body"], maxXvel=random.randint(4, 6)))
+            try:
+                resist = level["resist types"][i]
+            except IndexError:
+                level["resist types"].append("none")
+                resist = "none"
+            self.enemyEntities.add(self.make_enemy(item[0] + 20, item[1],resistType=resist,maxXvel=random.randint(4, 6)))
         for item in level["jumping mobs"]:
             self.jumpingEnemies.append([item[0], item[1]])
             self.jumpingEnemyEntities.add(
@@ -1834,8 +1870,20 @@ class Game:
                     blitToCam(self.img.image["bomb_lit"],pos)
             
         if self.scene == "editor":
-            for item in self.enemies:
-                blitToCam(self.img.image["enemy_for_editor"],(item[0]+5,item[1]+5))
+            for i in range(len(self.enemies)):
+                item = self.enemies[i]
+                resistance = self.data[str(self.levelIDX)]["resist types"][i]
+                if resistance == "spike":
+                    img = "enemy_spike_for_editor"
+                elif resistance == "bomb":
+                    img = "enemy_bomb_for_editor"
+                elif resistance == "electric":
+                    img = "enemy_electric_for_editor"
+                elif resistance == "saw":
+                    img = "enemy_saw_for_editor"
+                else:
+                    img = "enemy_for_editor"
+                blitToCam(self.img.image[img],(item[0]+5,item[1]+5))
 
             for item in self.jumpingEnemies:
                 blitToCam(self.img.image["jumping_enemy_for_editor"],(item[0]+5,item[1]+5))
@@ -1864,7 +1912,7 @@ class Game:
             y = (j*50) - (self.player.ypos%50) + (self.settings.SCRHEX//2)
             pygame.draw.line(SCREEN,(220,220,255),(0,y),(SCRW,y))
 
-    def draw_menu(self):
+    def draw_editor_menu(self):
         scr = self.editor.scroll#bind(-1000,self.editor.scroll,0)
         pygame.draw.rect(SCREEN,colour.lightgrey,(0,0,70,SCRH))
         pygame.draw.rect(SCREEN,colour.darkgrey,(0,0,70,SCRH),width=2)
@@ -1874,8 +1922,12 @@ class Game:
             #print(drawPos)
             pygame.draw.rect(SCREEN,(180,180,180),drawPos)
 
-        SCREEN.blit(self.img.image["link"],(SCRW-100,SCRH-100))
+        SCREEN.blit(self.img.image["build"],(SCRW - 100, SCRH - 100))
         # link image
+        SCREEN.blit(self.img.image["link"],(SCRW - 100, SCRH - 200))
+        # link image
+        SCREEN.blit(self.img.image["enemy_type"], (SCRW - 100, SCRH - 300))
+        # enemy type image
         pygame.draw.rect(SCREEN,colour.darkgrey,(10,30+scr,50,10))
         # platform icon
         pygame.draw.polygon(SCREEN,colour.red,((30,110+scr),(40,110+scr),(35,80+scr)))
@@ -1923,230 +1975,256 @@ class Game:
                 # select that item
                 break # cannot select two items at once
 
-    def run_editor(self):
-        e = bind(-1000,self.editor.scroll,0) # short for extra
+    def handle_misc_editor_events(self):
+        e = bind(-1000, self.editor.scroll, 0)  # short for extra
         self.editor.scroll = e
-        for i in range(len(self.editor.itemRects)): # account for scrolling
+        for i in range(len(self.editor.itemRects)):  # account for scrolling
             r = self.editor.originalItemRects[i]
-            self.editor.itemRects[i] = [r[0],r[1]+e,r[2],r[3]]
+            self.editor.itemRects[i] = [r[0], r[1] + e, r[2], r[3]]
 
-        self.editor.mouseRect[0],self.editor.mouseRect[1] = pygame.mouse.get_pos()
-        pygame.draw.rect(SCREEN,colour.red,self.editor.mouseRect)
+        self.editor.mouseRect[0], self.editor.mouseRect[1] = pygame.mouse.get_pos()
+        pygame.draw.rect(SCREEN, colour.red, self.editor.mouseRect)
 
-        mouseData = pygame.mouse.get_pressed()
+        self.editor.mouseData = pygame.mouse.get_pressed()
 
         self.editor.clicks[1] = self.editor.clicks[0]
-        self.editor.clicks[0] = mouseData[0]
+        self.editor.clicks[0] = self.editor.mouseData[0]
         self.editor.clicksR[1] = self.editor.clicksR[0]
-        self.editor.clicksR[0] = mouseData[2]
+        self.editor.clicksR[0] = self.editor.mouseData[2]
 
-        newMouseRect = get_actual_pos(self.editor.mouseRect)
-        
+        self.editor.newMouseRect = get_actual_pos(self.editor.mouseRect)
+
         if self.restart:
-            #self.trigger_death(die=False)
-            self.player.xpos,self.player.ypos = 0,0
+            # self.trigger_death(die=False)
+            self.player.xpos, self.player.ypos = 0, 0
             self.restart = False
 
+        if self.editor.buildRect.pressed():
+            self.editor.mode = "level builder"
+            self.editor.selected = "platform"
+
         if self.editor.linkRect.pressed():
-            self.editor.linkMode = not self.editor.linkMode
-            if self.editor.linkMode:
-                self.editor.selected = "Hover over highlighted platform to link to event"
-            else:
-                self.editor.selected = "platform"
+            self.editor.mode = "link mode"
+            self.editor.selected = "Hover over highlighted platform to link to event"
 
-        # does not work
-        #for which in ["platform","spike","fan base","fan column","star","mob","checkpoint"]:
-        #    print(which)
-        #    for item in self.data[str(self.levelIDX)][which+"s"]:
-        #        print(item)
-        #        sendToCam(item,col=colour.white,name="hitbox")
-        ###
-        if self.editor.linkMode:
-            self.run_button_boxes()
-            for which in [self.disappearingPlatforms,self.appearingPlatforms]:
-                for item in which:
-                    sendToCam(item,col=colour.white,name="hitbox")
-                    if pygame.Rect.colliderect(toRect(item),newMouseRect):
-                        idx = which.index(item)
-                        if which == self.disappearingPlatforms:
-                            val = bind(0,self.disappearingPlatformLinks[idx]+self.editor.relativeScroll,len(self.buttons)-1)
-                            self.disappearingPlatformLinks[idx] = val
-                            #print(f"{self.data[str(self.levelIDX)]["disappearing platform links"]}")
-                            self.data[str(self.levelIDX)]["disappearing platform links"][idx] = val
-                            self.editor.selected = f"Linked to button {self.disappearingPlatformLinks[idx]+1}"
-                        elif which == self.appearingPlatforms:
-                            val = bind(0,self.appearingPlatformLinks[idx]+self.editor.relativeScroll,len(self.buttons)-1)
-                            self.appearingPlatformLinks[idx] = val
-                            self.data[str(self.levelIDX)]["appearing platform links"][idx] = val
-                            self.editor.selected = f"Linked to button {self.appearingPlatformLinks[idx]+1}"
+        if self.editor.enemyTypeRect.pressed():
+            self.editor.mode = "enemy type"
+            self.editor.selected = "Hover over highlighted enemy to change type"
 
-                        self.data[str(self.levelIDX)]["disappearing platform links"] = self.disappearingPlatformLinks
-                        self.data[str(self.levelIDX)]["appearing platform links"] = self.appearingPlatformLinks
-        else:
-            if self.editor.selected in ["platform","disappearing platform","appearing platform","ice"]:
-                if self.editor.clicks == [True,False]:
-                    #add start coords
-                    realx,realy = pygame.mouse.get_pos()
-                    screenCoords = get_actual_pos((realx,realy,0,0))
-                    self.editor.pendingRect[0] = (screenCoords[0]//50)*50
-                    self.editor.pendingRect[1] = (screenCoords[1]//50)*50
-                elif self.editor.clicks == [True,True]:
-                    #add finish coords
-                    realx,realy = pygame.mouse.get_pos()
-                    screenCoords = get_actual_pos((realx,realy,0,0))
-                    self.editor.pendingRect[2] = ((screenCoords[0]//50)*50)-self.editor.pendingRect[0]
-                    self.editor.pendingRect[3] = ((screenCoords[1]//50)*50)-self.editor.pendingRect[1]
-                    sendToCam(self.editor.pendingRect,col=colour.white)
-                elif self.editor.clicks == [False,True]:
-                    #save the new platform
-                    if self.editor.pendingRect[2] > 0 and self.editor.pendingRect[3] > 0:
-                        if self.editor.selected == "platform":
-                            self.data[str(self.levelIDX)]["platforms"].append(self.editor.pendingRect)
-                        elif self.editor.selected == "disappearing platform":
-                            self.data[str(self.levelIDX)]["disappearing platforms"].append(self.editor.pendingRect)
-                            self.data[str(self.levelIDX)]["disappearing platform links"].append(-1)
-                        elif self.editor.selected == "appearing platform":
-                            self.data[str(self.levelIDX)]["appearing platforms"].append(self.editor.pendingRect)
-                            self.data[str(self.levelIDX)]["appearing platform links"].append(-1)
-                        elif self.editor.selected == "ice":
-                            self.data[str(self.levelIDX)]["ice"].append(self.editor.pendingRect)
+    def run_link_mode(self):
+        self.run_button_boxes()
+        for which in [self.disappearingPlatforms, self.appearingPlatforms]:
+            for item in which:
+                sendToCam(item, col=colour.white, name="hitbox")
+                if pygame.Rect.colliderect(toRect(item), self.editor.newMouseRect):
+                    idx = which.index(item)
+                    if which == self.disappearingPlatforms:
+                        val = bind(0, self.disappearingPlatformLinks[idx] + self.editor.relativeScroll,
+                                   len(self.buttons) - 1)
+                        self.disappearingPlatformLinks[idx] = val
+                        # print(f"{self.data[str(self.levelIDX)]["disappearing platform links"]}")
+                        self.data[str(self.levelIDX)]["disappearing platform links"][idx] = val
+                        self.editor.selected = f"Linked to button {self.disappearingPlatformLinks[idx] + 1}"
+                    elif which == self.appearingPlatforms:
+                        val = bind(0, self.appearingPlatformLinks[idx] + self.editor.relativeScroll,
+                                   len(self.buttons) - 1)
+                        self.appearingPlatformLinks[idx] = val
+                        self.data[str(self.levelIDX)]["appearing platform links"][idx] = val
+                        self.editor.selected = f"Linked to button {self.appearingPlatformLinks[idx] + 1}"
 
-                    self.editor.pendingRect = [0,0,0,0]
-                    self.update_level(next=False)
+                    self.data[str(self.levelIDX)]["disappearing platform links"] = self.disappearingPlatformLinks
+                    self.data[str(self.levelIDX)]["appearing platform links"] = self.appearingPlatformLinks
 
-                if self.editor.clicksR == [True,False]:
-                    # right click
-                    which = ""
-                    infoList = []
+    def run_level_builder(self):
+        if self.editor.selected in ["platform", "disappearing platform", "appearing platform", "ice"]:
+            if self.editor.clicks == [True, False]:
+                # add start coords
+                realx, realy = pygame.mouse.get_pos()
+                screenCoords = get_actual_pos((realx, realy, 0, 0))
+                self.editor.pendingRect[0] = (screenCoords[0] // 50) * 50
+                self.editor.pendingRect[1] = (screenCoords[1] // 50) * 50
+            elif self.editor.clicks == [True, True]:
+                # add finish coords
+                realx, realy = pygame.mouse.get_pos()
+                screenCoords = get_actual_pos((realx, realy, 0, 0))
+                self.editor.pendingRect[2] = ((screenCoords[0] // 50) * 50) - self.editor.pendingRect[0]
+                self.editor.pendingRect[3] = ((screenCoords[1] // 50) * 50) - self.editor.pendingRect[1]
+                sendToCam(self.editor.pendingRect, col=colour.white)
+            elif self.editor.clicks == [False, True]:
+                # save the new platform
+                if self.editor.pendingRect[2] > 0 and self.editor.pendingRect[3] > 0:
                     if self.editor.selected == "platform":
-                        which = "platforms"
+                        self.data[str(self.levelIDX)]["platforms"].append(self.editor.pendingRect)
                     elif self.editor.selected == "disappearing platform":
-                        which = "disappearing platforms"
-                        infoList = self.disappearingPlatformLinks
+                        self.data[str(self.levelIDX)]["disappearing platforms"].append(self.editor.pendingRect)
+                        self.data[str(self.levelIDX)]["disappearing platform links"].append(-1)
                     elif self.editor.selected == "appearing platform":
-                        which = "appearing platforms"
-                        infoList = self.appearingPlatformLinks
+                        self.data[str(self.levelIDX)]["appearing platforms"].append(self.editor.pendingRect)
+                        self.data[str(self.levelIDX)]["appearing platform links"].append(-1)
                     elif self.editor.selected == "ice":
-                        which = "ice"
+                        self.data[str(self.levelIDX)]["ice"].append(self.editor.pendingRect)
 
-                    for item in self.data[str(self.levelIDX)][which]:
-                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect(item)):
-                            try:
-                                self.data[str(self.levelIDX)][which].remove(item)
-                                idx = self.data[str(self.levelIDX)][which].index(item)
-                                infoList.pop(idx)
-                            except:
-                                pass
-                    self.update_level(next=False)
-            else:
-                if self.editor.clicks == [True,False]: # LMB
-                    realx,realy = pygame.mouse.get_pos()
-                    screenCoords = get_actual_pos((realx,realy,0,0))
-                    truncPos = [(screenCoords[0]//50)*50, (screenCoords[1]//50)*50]
+                self.editor.pendingRect = [0, 0, 0, 0]
+                self.update_level(next=False)
 
-                    if self.editor.selected == "spike":
-                        newSpike = [truncPos[0],truncPos[1]+50]
-                        self.data[str(self.levelIDX)]["spikes"].append(newSpike)
+            if self.editor.clicksR == [True, False]:
+                # right click
+                which = ""
+                infoList = []
+                if self.editor.selected == "platform":
+                    which = "platforms"
+                elif self.editor.selected == "disappearing platform":
+                    which = "disappearing platforms"
+                    infoList = self.disappearingPlatformLinks
+                elif self.editor.selected == "appearing platform":
+                    which = "appearing platforms"
+                    infoList = self.appearingPlatformLinks
+                elif self.editor.selected == "ice":
+                    which = "ice"
+
+                for item in self.data[str(self.levelIDX)][which]:
+                    if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect(item)):
+                        try:
+                            self.data[str(self.levelIDX)][which].remove(item)
+                            idx = self.data[str(self.levelIDX)][which].index(item)
+                            infoList.pop(idx)
+                        except:
+                            pass
+                self.update_level(next=False)
+        else:
+            if self.editor.clicks == [True, False]:  # LMB
+                realx, realy = pygame.mouse.get_pos()
+                screenCoords = get_actual_pos((realx, realy, 0, 0))
+                truncPos = [(screenCoords[0] // 50) * 50, (screenCoords[1] // 50) * 50]
+
+                if self.editor.selected == "spike":
+                    newSpike = [truncPos[0], truncPos[1] + 50]
+                    self.data[str(self.levelIDX)]["spikes"].append(newSpike)
+                    self.orient_spikes()
+
+                elif self.editor.selected == "end":
+                    self.data[str(self.levelIDX)]["end"] = truncPos
+
+                elif self.editor.selected == "fan base":
+                    self.data[str(self.levelIDX)]["fan bases"].append(truncPos)
+
+                elif self.editor.selected == "fan column":
+                    self.data[str(self.levelIDX)]["fan columns"].append(truncPos)
+
+                elif self.editor.selected == "star":
+                    self.data[str(self.levelIDX)]["stars"].append(truncPos)
+
+                elif self.editor.selected == "enemy":
+                    self.data[str(self.levelIDX)]["mobs"].append(truncPos)
+
+                elif self.editor.selected == "jumping enemy":
+                    self.data[str(self.levelIDX)]["jumping mobs"].append(truncPos)
+
+                elif self.editor.selected == "checkpoint":
+                    self.data[str(self.levelIDX)]["checkpoints"].append(truncPos)
+
+                elif self.editor.selected == "boss":
+                    self.data[str(self.levelIDX)]["bosses"].append(truncPos)
+
+                elif self.editor.selected == "button":
+                    self.data[str(self.levelIDX)]["buttons"].append(truncPos)
+
+                elif self.editor.selected == "bomb":
+                    self.data[str(self.levelIDX)]["bombs"].append(truncPos)
+
+                elif self.editor.selected == "saw":
+                    self.data[str(self.levelIDX)]["saws"].append(truncPos)
+
+                elif self.editor.selected == "electric":
+                    self.data[str(self.levelIDX)]["electric"].append(truncPos)
+
+                self.update_level(next=False)
+
+            if self.editor.clicksR == [True, False]:  # RMB
+                for item in self.spikes:
+                    orn = self.spikeDir[self.spikes.index(item)]
+                    if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), spike_convert(item, orn)):
+                        self.data[str(self.levelIDX)]["spikes"].remove(item)
                         self.orient_spikes()
 
-                    elif self.editor.selected == "end":
-                        self.data[str(self.levelIDX)]["end"] = truncPos
+                for item in self.fanBases:
+                    if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
+                        self.data[str(self.levelIDX)]["fan bases"].remove(item)
+                        self.fanBases.remove(item)
 
-                    elif self.editor.selected == "fan base":
-                        self.data[str(self.levelIDX)]["fan bases"].append(truncPos)
+                for item in self.fanColumns:
+                    if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
+                        self.data[str(self.levelIDX)]["fan columns"].remove(item)
+                        self.fanColumns.remove(item)
 
-                    elif self.editor.selected == "fan column":
-                        self.data[str(self.levelIDX)]["fan columns"].append(truncPos)
+                for item in self.stars:
+                    if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
+                        self.data[str(self.levelIDX)]["stars"].remove(item)
+                        self.stars.remove(item)
 
-                    elif self.editor.selected == "star":
-                        self.data[str(self.levelIDX)]["stars"].append(truncPos)
+                for i in range(len(self.enemies)):
+                    item = self.enemies[i]
+                    if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
+                        self.data[str(self.levelIDX)]["mobs"].remove(item)
+                        self.enemies.remove(item)
+                        self.data[str(self.levelIDX)]["resist types"].pop(i)
 
-                    elif self.editor.selected == "enemy":
-                        self.data[str(self.levelIDX)]["mobs"].append(truncPos)
+                for item in self.jumpingEnemies:
+                    if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
+                        self.data[str(self.levelIDX)]["jumping mobs"].remove(item)
+                        self.jumpingEnemies.remove(item)
 
-                    elif self.editor.selected == "jumping enemy":
-                        self.data[str(self.levelIDX)]["jumping mobs"].append(truncPos)
+                for item in self.checkpoints:
+                    if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
+                        self.data[str(self.levelIDX)]["checkpoints"].remove(item)
+                        self.checkpoints.remove(item)
 
-                    elif self.editor.selected == "checkpoint":
-                        self.data[str(self.levelIDX)]["checkpoints"].append(truncPos)
+                for item in self.bosses:
+                    if pygame.Rect.colliderect(toRect(self.editor.newMouseRect),
+                                               toRect([item[0] - 50, item[1] - 50, 50, 50])):
+                        self.data[str(self.levelIDX)]["bosses"].remove([item[0] - 50, item[1] - 50])
+                        self.bosses.remove(item)
 
-                    elif self.editor.selected == "boss":
-                        self.data[str(self.levelIDX)]["bosses"].append(truncPos)
+                for item in self.buttons:
+                    if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
+                        self.data[str(self.levelIDX)]["buttons"].remove(item)
+                        self.buttons.remove(item)
 
-                    elif self.editor.selected == "button":
-                        self.data[str(self.levelIDX)]["buttons"].append(truncPos)
+                for item in self.bombs:
+                    if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
+                        self.data[str(self.levelIDX)]["bombs"].remove(item)
 
-                    elif self.editor.selected == "bomb":
-                        self.data[str(self.levelIDX)]["bombs"].append(truncPos)
+                for item in self.saws:
+                    if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
+                        self.data[str(self.levelIDX)]["saws"].remove(item)
 
-                    elif self.editor.selected == "saw":
-                        self.data[str(self.levelIDX)]["saws"].append(truncPos)
+                for item in self.electric:
+                    if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
+                        self.data[str(self.levelIDX)]["electric"].remove(item)
 
-                    elif self.editor.selected == "electric":
-                        self.data[str(self.levelIDX)]["electric"].append(truncPos)
+                self.update_level(next=False)
 
-                    self.update_level(next=False)
+    def run_enemy_type_editor(self):
+        level = self.data[str(self.levelIDX)]
+        for i in range(len(self.enemies)):
+            enemy = self.enemies[i]
+            enemyRect = toRect(enemy)
+            sendToCam(enemyRect,name="hitbox")
+            if pygame.Rect.colliderect(enemyRect,self.editor.newMouseRect):
+                idx = self.editor.relativeScroll + self.editor.resistTypes.index(level["resist types"][i])
+                idx = bind(0,idx,len(self.editor.resistTypes)-1)
+                level["resist types"][i] = self.editor.resistTypes[idx]
+                self.editor.selected = f"Enemy type: {level["resist types"][i].capitalize()}"
 
-                if self.editor.clicksR == [True,False]: #RMB
-                    for item in self.spikes:
-                        orn = self.spikeDir[self.spikes.index(item)]
-                        if pygame.Rect.colliderect(toRect(newMouseRect),spike_convert(item,orn)):
-                            self.data[str(self.levelIDX)]["spikes"].remove(item)
-                            self.orient_spikes()
+    def run_editor(self):
+        self.handle_misc_editor_events()
 
-                    for item in self.fanBases:
-                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
-                            self.data[str(self.levelIDX)]["fan bases"].remove(item)
-                            self.fanBases.remove(item)
-
-                    for item in self.fanColumns:
-                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
-                            self.data[str(self.levelIDX)]["fan columns"].remove(item)
-                            self.fanColumns.remove(item)
-
-                    for item in self.stars:
-                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
-                            self.data[str(self.levelIDX)]["stars"].remove(item)
-                            self.stars.remove(item)
-
-                    for item in self.enemies:
-                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
-                            self.data[str(self.levelIDX)]["mobs"].remove(item)
-                            self.enemies.remove(item)
-
-                    for item in self.jumpingEnemies:
-                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
-                            self.data[str(self.levelIDX)]["jumping mobs"].remove(item)
-                            self.jumpingEnemies.remove(item)
-
-                    for item in self.checkpoints:
-                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
-                            self.data[str(self.levelIDX)]["checkpoints"].remove(item)
-                            self.checkpoints.remove(item)
-
-                    for item in self.bosses:
-                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0]-50,item[1]-50,50,50])):
-                            self.data[str(self.levelIDX)]["bosses"].remove([item[0]-50,item[1]-50])
-                            self.bosses.remove(item)
-
-                    for item in self.buttons:
-                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
-                            self.data[str(self.levelIDX)]["buttons"].remove(item)
-                            self.buttons.remove(item)
-
-                    for item in self.bombs:
-                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
-                            self.data[str(self.levelIDX)]["bombs"].remove(item)
-
-                    for item in self.saws:
-                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
-                            self.data[str(self.levelIDX)]["saws"].remove(item)
-
-                    for item in self.electric:
-                        if pygame.Rect.colliderect(toRect(newMouseRect),toRect([item[0],item[1],50,50])):
-                            self.data[str(self.levelIDX)]["electric"].remove(item)
-
-                    self.update_level(next=False)
+        if self.editor.mode == "link mode":
+            self.run_link_mode()
+        elif self.editor.mode == "enemy type":
+            self.run_enemy_type_editor()
+        elif self.editor.mode == "level builder":
+            self.run_level_builder()
 
     def run_button_boxes(self):
         for box in self.editor.buttonIndexBoxes:
@@ -2192,17 +2270,22 @@ class Editor:
         self.mouseRect = [0,0,3,3]
         self.clicks = [False,False] # current and last state of LMB
         self.selected = "platform"
-        self.linkMode = False
-        self.buttonIndexBoxes = [] # a QOL feature to show the index of
-        # a button when in link mode in editor
+        self.mode = "level builder"
+        self.buttonIndexBoxes = []
+        self.mouseData = [False,False,False]
+        self.newMouseRect = toRect()
 
-        self.linkRect = u.Pressable(SCRW-100,SCRH-100,70,70)
+        self.buildRect = u.Pressable(SCRW-100,SCRH-100,70,70)
+        self.linkRect = u.Pressable(SCRW-100,SCRH-200,70,70)
+        self.enemyTypeRect = u.Pressable(SCRW-100,SCRH-300,70,70)
+
         self.originalItemRects = []
         self.itemRects = []
         self.ref = ["platform","spike","end","fan base",
                     "fan column","star","enemy", "jumping enemy",
                     "checkpoint","boss","button","disappearing platform",
                     "appearing platform","bomb","ice","saw","electric"]
+        self.resistTypes = ["none","spike","bomb","electric","saw"]
 
         for i in range(50):
             y = i*60
@@ -2408,7 +2491,7 @@ class Player(Physics_Object):
         self.height = self.img.get_height()
 
 class Enemy(Physics_Object):
-    def __init__(self,xpos,ypos,maxXvel=5,maxYvel=30,gravity=0.981,img=None):
+    def __init__(self,xpos,ypos,maxXvel=5,maxYvel=30,gravity=0.981,img=None,resist="none"):
         super().__init__(xpos,ypos,gravity,maxXvel,maxYvel)
         #self.xpos = xpos
         #self.ypos = ypos
@@ -2431,6 +2514,7 @@ class Enemy(Physics_Object):
         self.height = 0
         self.colour = (237,28,36)
         self.deathCause = None
+        self.resist = resist
 
         try:
             self.update_image(self.img)
@@ -3314,7 +3398,7 @@ cancelBox = u.old_textbox("Cancel",font28,(SCRW*0.5,490),oval=True,tags=["warnin
 customiseBox = u.old_textbox("Customise player",font18,(SCRW*0.7,400),oval=True,tags=["menu"])
 resetColourBox = u.old_textbox("Reset",font18,(SCRW*0.1,SCRH*0.9),tags=["customise"])
 
-linkBox = u.old_textbox("Link mode",font18,(SCRW//2,100),tags=["editor"],backgroundCol=colour.red)
+editorModeBox = u.old_textbox("Link mode", font18, (SCRW // 2, 100), tags=["editor"], backgroundCol=colour.red)
 
 redSlider = u.Slider(SCRW*0.4,SCRH*0.3,length=150,width=50)
 greenSlider = u.Slider(SCRW*0.4,SCRH*0.5,length=150,width=50)
@@ -3327,7 +3411,7 @@ boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,le
          creditsTitleBox,creditsBox,credits1,credits2,credits3,credits4,credits5,credits6,
          credits7,credits8,credits9,credits10,credits11,credits12,timerBox,startStopBox,showTimerBox,
          warningTitleBox,warningMessageBox1,warningMessageBox2,confirmBox,cancelBox,
-         customiseBox,resetColourBox]
+         customiseBox,resetColourBox,editorModeBox]
 # hard coded textboxes
 
 ##################################################
@@ -3508,7 +3592,7 @@ def reposition_boxes():
     resetStatsBox.pos = (SCRW//5,550)
     annoyingBossesBox.pos = (SCRW//2,150)
     soundBox.pos = (SCRW//2,100)
-    linkBox.pos = (SCRW//2,100)
+    editorModeBox.pos = (SCRW // 2, 100)
     highResTexturesBox.pos = (SCRW*0.6,200)
     chaosModeBox.pos = (SCRW*0.4,200)
     chaosModifierBox.pos = (SCRW*0.5,50)
@@ -3539,7 +3623,9 @@ def reposition_boxes():
     greenSlider.move_to(SCRW*0.4,None)
     blueSlider.move_to(SCRW*0.4,None)
 
-    game.editor.linkRect.move_to(SCRW-100,SCRH-100)
+    game.editor.buildRect.move_to(SCRW-100,SCRH-100)
+    game.editor.linkRect.move_to(SCRW-100,SCRH-200)
+    game.editor.enemyTypeRect.move_to(SCRW-100,SCRH-300)
     game.hats.resize()
 
 def tick_boxes():
@@ -3655,9 +3741,6 @@ def tick_boxes():
         game.settings.annoyingBosses = True
         game.scene = "settings"
 
-    if game.scene == "editor" and game.editor.linkMode:
-        linkBox.display()
-
     if highResTexturesBox.isPressed():
         game.settings.highResTextures = not game.settings.highResTextures
 
@@ -3768,7 +3851,7 @@ def handle_events(move):
         elif event.type == pygame.MOUSEWHEEL:
             #print(f"{event.y}")
             game.editor.relativeScroll = event.y
-            if not game.editor.linkMode:
+            if game.editor.mode == "level builder":
                 game.editor.scroll += (event.y*20)
 
         elif event.type == pygame.KEYDOWN:
@@ -3911,7 +3994,8 @@ while True:
         mapped = get_actual_pos(mpos)
         acx,acy = ((mapped[0]//50)*50,(mapped[1]//50)*50)
         coordBox.update_message(( str(acx) + "," + str(acy) ))
-        
+        editorModeBox.update_message(f"{game.editor.mode.capitalize()}")
+
         game.draw_grid()
         #game.run_editor() # temp
         game.tick_button_platforms()
@@ -3919,7 +4003,7 @@ while True:
         game.check_selected()
         game.run_editor()
         game.player.free_cam()
-        game.draw_menu()
+        game.draw_editor_menu()
 
     elif game.scene == "levels":
         levelSlots.tick()
