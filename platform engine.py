@@ -817,6 +817,7 @@ class Game:
                 self.enemyEntities.add(Enemy(self.player.xpos + posMod[0],
                                                 self.player.ypos + posMod[1],
                                                 img=self.img.image["enemy_body"]))
+
         elif what == "rgb":
             pass # does this in the draw_gradient()
 
@@ -853,7 +854,16 @@ class Game:
         elif what == "thick":
             self.player.update_image(self.img.image["body_thick"])
             for item in self.enemyEntities:
-                item.update_image(self.img.image["enemy_body_thick"])
+                if item.resist == "spike":
+                    item.update_image(self.img.image["enemy_body_spike_thick"])
+                elif item.resist == "bomb":
+                    item.update_image(self.img.image["enemy_body_bomb_thick"])
+                elif item.resist == "electric":
+                    item.update_image(self.img.image["enemy_body_electric_thick"])
+                elif item.resist == "saw":
+                    item.update_image(self.img.image["enemy_body_saw_thick"])
+                else:
+                    item.update_image(self.img.image["enemy_body_thick"])
             for item in self.bossEntities:
                 item.update_image(self.img.image["boss_img_thick"])
 
@@ -868,7 +878,17 @@ class Game:
 
         self.player.update_image(self.img.image["body"])
         for item in self.enemyEntities:
-            item.update_image(self.img.image["enemy_body"])
+            for item in self.enemyEntities:
+                if item.resist == "spike":
+                    item.update_image(self.img.image["enemy_body_spike"])
+                elif item.resist == "bomb":
+                    item.update_image(self.img.image["enemy_body_bomb"])
+                elif item.resist == "electric":
+                    item.update_image(self.img.image["enemy_body_electric"])
+                elif item.resist == "saw":
+                    item.update_image(self.img.image["enemy_body_saw"])
+                else:
+                    item.update_image(self.img.image["enemy_body"])
         for item in self.bossEntities:
             item.update_image(self.img.image["boss_img"])
 
@@ -945,7 +965,7 @@ class Game:
         if obj.deathCause == "electric":
             particle = Zap_Particle(obj.xpos - 20, obj.ypos - 20, self.img.image["zap"],name=name)
         elif obj.deathCause == "saw":
-            particle = Chop_Particle(obj.xpos - 20, obj.ypos - 20,obj.colour)
+            particle = Chop_Particle(obj.xpos - 20, obj.ypos - 20,obj.colour,name=name)
         else:
             particle = Death_Particle(obj.xpos, obj.ypos + 14, obj.colour,name=name)
 
@@ -1468,7 +1488,7 @@ class Game:
                 for mob in which:
                     if pygame.Rect.colliderect(mob.hitbox.actWhole, saw) and mob.resist != "saw":
                         mob.needsDel = True
-                        mob.deathCause = "electric"
+                        mob.deathCause = "saw"
 
             for mob in self.bossEntities:
                 if pygame.Rect.colliderect(mob.hitbox.actWhole, saw):
@@ -1742,7 +1762,7 @@ class Game:
             except IndexError:
                 level["resist types"].append("none")
                 resist = "none"
-            self.enemyEntities.add(self.make_enemy(item[0] + 20, item[1],resistType=resist,maxXvel=random.randint(4, 6)))
+            self.enemyEntities.add(self.make_enemy(item[0] + 20, item[1],resistType=resist,maxXvel=random.randint(5, 6)))
         for item in level["jumping mobs"]:
             self.jumpingEnemies.append([item[0], item[1]])
             self.jumpingEnemyEntities.add(
@@ -2168,6 +2188,7 @@ class Game:
                         self.data[str(self.levelIDX)]["mobs"].remove(item)
                         self.enemies.remove(item)
                         self.data[str(self.levelIDX)]["resist types"].pop(i)
+                        break
 
                 for item in self.jumpingEnemies:
                     if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
@@ -2493,16 +2514,9 @@ class Player(Physics_Object):
 class Enemy(Physics_Object):
     def __init__(self,xpos,ypos,maxXvel=5,maxYvel=30,gravity=0.981,img=None,resist="none"):
         super().__init__(xpos,ypos,gravity,maxXvel,maxYvel)
-        #self.xpos = xpos
-        #self.ypos = ypos
         self.center = [self.xpos,self.ypos]
-        #self.xvel = 0
-        #self.yvel = 0
         self.lastYvel = 0
         self.xInc = 1
-        #self.maxXvel = maxXvel
-        #self.maxYvel = maxYvel
-        #self.gravity = gravity
         self.target = [0,0]
         self.maxTargetDist = 500
         self.canSeeTarget = False
