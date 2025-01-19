@@ -2069,9 +2069,16 @@ class Game:
                 screenCoords = get_actual_pos((realx, realy, 0, 0))
                 self.editor.pendingRect[2] = ((screenCoords[0] // 50) * 50) - self.editor.pendingRect[0]
                 self.editor.pendingRect[3] = ((screenCoords[1] // 50) * 50) - self.editor.pendingRect[1]
-                sendToCam(self.editor.pendingRect, col=colour.white)
+
+                drawRect = toRect(self.editor.pendingRect[::])
+                drawRect.normalize()
+                sendToCam(drawRect, col=colour.white)
             elif self.editor.clicks == [False, True]:
                 # save the new platform
+                self.editor.pendingRect = toRect(self.editor.pendingRect)
+                self.editor.pendingRect.normalize()
+                self.editor.pendingRect = list(self.editor.pendingRect)
+                
                 if self.editor.pendingRect[2] > 0 and self.editor.pendingRect[3] > 0:
                     if self.editor.selected == "platform":
                         self.data[str(self.levelIDX)]["platforms"].append(self.editor.pendingRect)
