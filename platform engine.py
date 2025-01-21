@@ -9,7 +9,6 @@ import sys
 import utility as u
 import webbrowser as w
 
-sys.path.append(f"{sys.path[0]}/assets")
 
 SCRW = 800
 SCRH = 600
@@ -56,7 +55,7 @@ class Images:
         "finish" : pygame.image.load("finish.png"),
         "checkpoint_off" : pygame.image.load("checkpoint_off.png"),
         "checkpoint_on" : pygame.image.load("checkpoint_on.png"),
-        "tick" : pygame.transform.scale_by(pygame.image.load("tick.png"),(0.2)),
+        "tick" : pygame.transform.scale_by(pygame.image.load("tick.png"),0.2),
         "boss_img" : pygame.image.load("boss_face.png"),
         "boss_img_thick" : pygame.image.load("boss_face_thick.png"),
         "boss_menu" : pygame.transform.scale_by(pygame.image.load("boss_face.png"),0.2),
@@ -324,7 +323,7 @@ class Level_slots:
             except IndexError:
                 pass
 
-        if self.num > 10 and ((math.ceil(self.num/10) != self.page)):
+        if self.num > 10 and math.ceil(self.num/10) != self.page:
             self.nextBox.isShowing = True
             self.nextBox.display()
         else:
@@ -366,7 +365,7 @@ class Settings:
 
 class Stats:
     def __init__(self):
-        self.stars = []
+        self.stars = {}
         self.enemiesKilled = 0
         self.startTime = 0
         self.playTime = 0
@@ -524,7 +523,7 @@ class Notification:
 
         if len(self.title) < 10:
             titleSize = size+4
-        if len(self.title) < 18:
+        elif len(self.title) < 18:
             titleSize = size
         else:
             titleSize = size-4
@@ -533,7 +532,7 @@ class Notification:
 
         if len(self.body) < 10:
             bodySize = size+2
-        if len(self.body) < 18:
+        elif len(self.body) < 18:
             bodySize = size-2
         else:
             bodySize = size-5
@@ -878,17 +877,16 @@ class Game:
 
         self.player.update_image(self.img.image["body"])
         for item in self.enemyEntities:
-            for item in self.enemyEntities:
-                if item.resist == "spike":
-                    item.update_image(self.img.image["enemy_body_spike"])
-                elif item.resist == "bomb":
-                    item.update_image(self.img.image["enemy_body_bomb"])
-                elif item.resist == "electric":
-                    item.update_image(self.img.image["enemy_body_electric"])
-                elif item.resist == "saw":
-                    item.update_image(self.img.image["enemy_body_saw"])
-                else:
-                    item.update_image(self.img.image["enemy_body"])
+            if item.resist == "spike":
+                item.update_image(self.img.image["enemy_body_spike"])
+            elif item.resist == "bomb":
+                item.update_image(self.img.image["enemy_body_bomb"])
+            elif item.resist == "electric":
+                item.update_image(self.img.image["enemy_body_electric"])
+            elif item.resist == "saw":
+                item.update_image(self.img.image["enemy_body_saw"])
+            else:
+                item.update_image(self.img.image["enemy_body"])
         for item in self.bossEntities:
             item.update_image(self.img.image["boss_img"])
 
@@ -1054,14 +1052,9 @@ class Game:
 
     def save_stats(self):
         with open("stats.json", "w") as file:
-            info = {}
-            info["stars"] = self.stats.stars
-            info["enemiesKilled"] = self.stats.enemiesKilled
-            info["playTime"] = self.stats.playTime
-            info["deaths"] = self.stats.deaths
-            info["hidden1"] = self.stats.hidden1progress
-            info["bossesKilled"] = self.stats.bossesKilled
-            info["fallen"] = self.achievements.achievements["fall1"]
+            info = {"stars": self.stats.stars, "enemiesKilled": self.stats.enemiesKilled,
+                    "playTime": self.stats.playTime, "deaths": self.stats.deaths, "hidden1": self.stats.hidden1progress,
+                    "bossesKilled": self.stats.bossesKilled, "fallen": self.achievements.achievements["fall1"]}
             file.write(json.dumps(info))
 
     def load_cache(self):
@@ -1074,13 +1067,10 @@ class Game:
 
     def save_cache(self):
         with open("cache.json", "w") as file:
-            info = {}
-            info["hat"] = self.player.hat
-            info["col"] = (self.player.colour[0],
-                           self.player.colour[1],
-                           self.player.colour[2],
-                           255)
-            info["hasinit"] = self.misc.hasinit
+            info = {"hat": self.player.hat, "col": (self.player.colour[0],
+                                                    self.player.colour[1],
+                                                    self.player.colour[2],
+                                                    255), "hasinit": self.misc.hasinit}
             file.write(json.dumps(info))
 
     def tick_button_platforms(self):
@@ -1280,7 +1270,7 @@ class Game:
             if self.player.wallData[2] and self.player.wallData[1]:
                 self.player.xvel = 0
             if self.player.wallData[3]:
-                self.yvel = 0
+                self.player.yvel = 0
 
         self.player.xpos += self.player.xvel
         self.player.ypos += self.player.yvel
@@ -1558,7 +1548,7 @@ class Game:
                     press.append(
                         pygame.Rect.colliderect(mob.hitbox.actWhole, get_actual_pos((item[0], item[1], 50, 50))))
 
-            if (True in press):
+            if True in press:
                 self.buttonPresses[self.buttons.index(item)] = True
 
     def tick(self):
@@ -2359,6 +2349,8 @@ class Mob_Hitbox:
         self.collideLeft = None
         self.collideRight = None
 
+        self.floorMaterial = None
+
     def clear(self):
         self.collideWhole = None
         self.collideTop = None
@@ -2381,7 +2373,7 @@ class Physics_Object:
 
     def tick(self):
         self.yvel += self.gravity
-        if self.floorMaterial != None:
+        if self.floorMaterial is not None:
             self.yvel = 0
 
         if self.xvel > self.maxXvel:
@@ -2490,7 +2482,7 @@ class Player(Physics_Object):
             right = True
 
         for pos in [((SCRW//2)-20,(SCRH//2)+21),((SCRW//2),(SCRH//2)+21),((SCRW//2)+20,(SCRH//2)+21)]:
-            if (SCREEN.get_at(pos) == colour.green):
+            if SCREEN.get_at(pos) == colour.green:
                 self.atFinish = True
 
         return [bottom,left,right]
@@ -2536,7 +2528,6 @@ class Enemy(Physics_Object):
         self.colour = (237,28,36)
         self.deathCause = None
         self.resist = resist
-
         try:
             self.update_image(self.img)
         except:
@@ -2629,6 +2620,7 @@ class Enemy(Physics_Object):
         self.img = surf
         self.width = self.img.get_width()
         self.height = self.img.get_height()
+        self.colour = self.img.get_at((self.width//2,self.height//2))
 
 class Jumping_Enemy(Enemy):
     def __init__(self,xpos,ypos,maxXvel=5,maxYvel=30,gravity=0.981,img=None):
@@ -2760,7 +2752,7 @@ class Bomb(Physics_Object):
 
 class Boss(Enemy):
     def __init__(self,xpos,ypos,img,maxXvel=6,maxYvel=50,health=600,gravity=0.981):
-        super().__init__(xpos,ypos,maxXvel=maxXvel,maxYvel=maxYvel,gravity=0.981,img=img)
+        super().__init__(xpos,ypos,maxXvel=maxXvel,maxYvel=maxYvel,gravity=gravity,img=img)
         self.maxHealth = health
         self.health = self.maxHealth
         self.hb = u.healthBar(0,0,self.maxHealth)
@@ -3798,7 +3790,7 @@ def tick_boxes():
         startStopBox.isShowing = True
         if game.misc.timerRunning:
             time = now() - game.misc.timerStart
-            ms = (time)  # + now())
+            ms = time  # + now())
             secs = (ms // 1000) % 60
             mins = (ms // (1000 * 60)) % 60
             timerBox.update_message(f"{mins}:{secs}:{ms}")
@@ -3853,7 +3845,7 @@ def now():
     return uptime#pygame.time.get_ticks()
 
 def handle_events(move):
-    global SCRW,SCRH
+    global SCRW,SCRH,SCREEN
     game.editor.relativeScroll = 0
 
     for event in pygame.event.get():
@@ -4043,7 +4035,7 @@ while True:
         for key in game.stats.stars:
             starCount += len(game.stats.stars[key])
 
-        ms = (game.stats.playTime)# + now())
+        ms = game.stats.playTime# + now())
         secs = (ms // 1000) % 60
         mins = (ms // (1000*60)) % 60
         hours = (ms // (1000*60*60)) % 60
