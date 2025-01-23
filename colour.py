@@ -17,4 +17,4 @@ black = (0,0,0)
 colours = [red,orange,yellow,green,cyan,blue,purple,magenta,white,lightgrey,darkgrey,black]
 
 def randCol():
-    return colours[ranint(0,len(colours)-1)]
+    return colours[randint(0,len(colours)-1)]

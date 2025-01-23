@@ -6,6 +6,7 @@ mouse = {"left":[False,False],
         "right":[False,False],
          "pos":[0,0]}
 
+SCREEN = None
 def init(screen):
     global SCREEN
     SCREEN = screen
