@@ -582,6 +582,7 @@ class Game:
         self.rgb = u.rainbow()
         self.hats = Hat_Selector(self.img.image["hats"])
         self.camerashake = Camerashake()
+        self.joystick = Joystick()
 
         self.clouds = []
         self.notifications = []
@@ -644,6 +645,7 @@ class Game:
         self.fix_stats_stars()
         self.achievements.update_slots()
         self.save_asthetics(self.player.colour)
+        self.joystick.resize(SCRW, SCRH)
 
         self.scene = "menu" if self.misc.hasinit else "init"
 
@@ -1070,6 +1072,7 @@ class Game:
         self.player.hat = info["hat"]
         self.hats.selected = info["hat"]
         self.misc.hasinit = info["hasinit"]
+        self.joystick.side = info["side"]
         self.settings.controls = info["controls"]
 
     def save_cache(self):
@@ -1080,6 +1083,7 @@ class Game:
                             math.floor(self.player.colour[2]),
                             255),
                     "controls":self.settings.controls,
+                    "side":self.joystick.side,
                     "hasinit": self.misc.hasinit}
             file.write(json.dumps(info))
 
@@ -2333,10 +2337,15 @@ class Joystick:
         self.sypos = self.ypos # stick ypos
         self.wiggle = 30
         self.extra = 150
+        self.side = False
 
     def resize(self,x,y):
-        self.xpos = x - self.radius - 50
-        self.ypos = y - self.radius - 50
+        if self.side:
+            self.xpos = x - self.radius - 50
+            self.ypos = y - self.radius - 50
+        else:
+            self.xpos = self.radius + 50
+            self.ypos = y - self.radius - 50
 
     def draw(self):
         pygame.draw.circle(SCREEN,(50,50,50,100),(self.xpos,self.ypos),self.radius)
@@ -3479,6 +3488,7 @@ cancelBox = u.old_textbox("Cancel",font28,(SCRW*0.5,490),oval=True,tags=["warnin
 customiseBox = u.old_textbox("Customise player",font18,(SCRW*0.7,400),oval=True,tags=["menu"])
 resetColourBox = u.old_textbox("Reset",font18,(SCRW*0.1,SCRH*0.9),tags=["customise"])
 changeControlsBox = u.old_textbox("Controls",font18,(SCRW*0.6,100),tags=["settings"])
+switchSideBox = u.old_textbox("Joystick side: -",font18,(100,SCRH-100),tags=["control"])
 
 controlsBox = u.old_textbox("Select controls",font50,(SCRW*0.5,SCRH*0.2),tags=["control"])
 touchscreenBox = u.old_textbox("Touchscreen",font28,(SCRW*0.3,SCRH*0.4),tags=["control"])
@@ -3499,7 +3509,7 @@ boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,le
          credits7,credits8,credits9,credits10,credits11,credits12,timerBox,startStopBox,showTimerBox,
          warningTitleBox,warningMessageBox1,warningMessageBox2,confirmBox,cancelBox,
          customiseBox,resetColourBox,editorModeBox,controlsBox,touchscreenBox,keyboardBox,
-         selectControlBox,changeControlsBox]
+         selectControlBox,changeControlsBox,switchSideBox]
 
 # hard coded textboxes
 
@@ -3708,6 +3718,12 @@ def reposition_boxes():
     customiseBox.pos = (SCRW*0.7,400)
     resetColourBox.pos = (SCRW*0.1,SCRH*0.9)
     changeControlsBox.pos = (SCRW*0.6,100)
+    switchSideBox.pos = (100,SCRH-100)
+
+    controlsBox.pos = (SCRW * 0.5, SCRH * 0.2)
+    touchscreenBox.pos = (SCRW * 0.3, SCRH * 0.4)
+    keyboardBox.pos = (SCRW * 0.7, SCRH * 0.4)
+    selectControlBox.pos = (SCRW * 0.5, SCRH * 0.7)
 
     redSlider.move_to(SCRW*0.4,None)
     greenSlider.move_to(SCRW*0.4,None)
@@ -3717,7 +3733,7 @@ def reposition_boxes():
     game.editor.linkRect.move_to(SCRW-100,SCRH-200)
     game.editor.enemyTypeRect.move_to(SCRW-100,SCRH-300)
     game.hats.resize()
-    joystick.resize(SCRW,SCRH)
+    game.joystick.resize(SCRW,SCRH)
 
 def tick_boxes():
     for item in boxes:
@@ -3897,6 +3913,15 @@ def tick_boxes():
     if selectControlBox.isPressed():
         game.scene = "menu"
 
+    if switchSideBox.isPressed():
+        game.joystick.side = not game.joystick.side
+        game.joystick.resize(SCRW,SCRH)
+
+    if game.joystick.side:
+        switchSideBox.update_message("Joystick side: right")
+    else:
+        switchSideBox.update_message("Joystick side: left")
+
 def spike_convert(item,orn=0):
     if orn == 0:
         return [item[0] + 5, item[1] - 30, 40, 30]
@@ -3912,8 +3937,8 @@ def spike_convert(item,orn=0):
 
 def run_joystick():
     if game.settings.controls == "touchscreen":
-        joystick.update()
-        joystick.draw()
+        game.joystick.update()
+        game.joystick.draw()
 
 def esc_pressed():
     if game.scene == "editor":
@@ -3940,7 +3965,7 @@ def handle_events(move):
     global SCRW,SCRH,SCREEN
     game.editor.relativeScroll = 0
     if game.settings.controls == "touchscreen":
-        game.player.move = joystick.get()
+        game.player.move = game.joystick.get()
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -3995,7 +4020,6 @@ def handle_events(move):
 
 img = Images()
 game = Game()
-joystick = Joystick()
 levelSlots = Level_slots(len(game.data))
 
 r,g,b,a = game.player.colour
