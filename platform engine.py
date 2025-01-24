@@ -4,7 +4,7 @@ import json
 import math
 import os
 import pygame
-import random 
+import random
 import sys  
 import utility as u
 import webbrowser as w
@@ -20,7 +20,8 @@ uptime = 0
 
 pygame.init()
 pygame.mixer.init()
-SCREEN = pygame.display.set_mode((SCRW,SCRH),pygame.RESIZABLE)
+flags = pygame.RESIZABLE | pygame.DOUBLEBUF | pygame.HWSURFACE | pygame.SRCALPHA
+SCREEN = pygame.display.set_mode((SCRW,SCRH),flags)
 u.init(SCREEN)
 clock = pygame.time.Clock()
 pygame.display.set_caption("Platform game!")
@@ -101,10 +102,11 @@ class Images:
                 self.image["electric_end"].append(pygame.image.load(f"electric_end_{o}_{n}.png"))
 
         for each in [("enemy_for_editor","enemy_body"),
-                      ("enemy_spike_for_editor","enemy_body_spike"),
-                       ("enemy_bomb_for_editor","enemy_body_bomb"),
-                        ("enemy_electric_for_editor","enemy_body_electric"),
-                         ("enemy_saw_for_editor","enemy_body_saw")]:
+                     ("enemy_spike_for_editor","enemy_body_spike"),
+                     ("enemy_bomb_for_editor","enemy_body_bomb"),
+                     ("enemy_electric_for_editor","enemy_body_electric"),
+                     ("enemy_saw_for_editor","enemy_body_saw"),
+                     ("body_with_eye","body")]:
             copy = self.image[each[1]].copy()
             pygame.draw.circle(copy,colour.white,(20,15),10)
             pygame.draw.circle(copy,colour.black,(20,16),7)
@@ -362,6 +364,7 @@ class Settings:
         self.annoyingBosses = False
         self.chaosMode = False
         self.highResTextures = True
+        self.controls = "none"
 
 class Stats:
     def __init__(self):
@@ -397,6 +400,7 @@ class MiscData:
         self.platformCol = colour.darkgrey
         self.bgCol = [(200,200,255),
                       (200,200,170)]
+        self.menuCol = (200,200,250)
 
         self.hasTransition = False
         self.wasTransition = False
@@ -430,8 +434,10 @@ class Chaos:
         self.state = 1
         self.lastChange = 0
         self.action = 0
-        self.actions = ["spawn enemies","rgb","low gravity","speed","random teleport",
-                        "boss fight","thick","invert screen","wonky","bomb strike","greyscale"]
+        self.actions = ["spawn enemies","rgb","low gravity","speed",
+                        "random teleport","boss fight","thick",
+                        "invert screen","wonky","bomb strike","greyscale",
+                        "invert fan"]
 
     def reset(self):
         self.lastChange = now()
@@ -1064,13 +1070,17 @@ class Game:
         self.player.hat = info["hat"]
         self.hats.selected = info["hat"]
         self.misc.hasinit = info["hasinit"]
+        self.settings.controls = info["controls"]
 
     def save_cache(self):
         with open("cache.json", "w") as file:
-            info = {"hat": self.player.hat, "col": (self.player.colour[0],
-                                                    self.player.colour[1],
-                                                    self.player.colour[2],
-                                                    255), "hasinit": self.misc.hasinit}
+            info = {"hat": self.player.hat,
+                    "col": (math.floor(self.player.colour[0]),
+                            math.floor(self.player.colour[1]),
+                            math.floor(self.player.colour[2]),
+                            255),
+                    "controls":self.settings.controls,
+                    "hasinit": self.misc.hasinit}
             file.write(json.dumps(info))
 
     def tick_button_platforms(self):
@@ -1527,7 +1537,10 @@ class Game:
             if pygame.Rect.colliderect(self.player.hitbox.actWhole, toRect(get_actual_pos(newItem))):
                 self.sound.start_fan()
                 if self.player.yvel >= -10:
-                    self.player.yvel -= 0.5 + self.player.gravity
+                    if self.chaos.actions[self.chaos.action] == "invert fans":
+                        self.player.yvel += 1
+                    else:
+                        self.player.yvel -= 0.5 + self.player.gravity
                 # if self.player.wallData[0]:
                 #    self.player.yvel = -1
                 ##                    self.player.ypos -= 10
@@ -2309,6 +2322,39 @@ class Editor:
             y = i*60
             self.originalItemRects.append((10,y+5,50,50))
             self.itemRects.append((10, y + 5, 50, 50))
+
+class Joystick:
+    def __init__(self):
+        self.radius = 100
+        self.xpos = SCRW - self.radius - 50
+        self.ypos = SCRH - self.radius - 50
+        self.sradius = 30
+        self.sxpos = self.xpos # stick xpos
+        self.sypos = self.ypos # stick ypos
+        self.wiggle = 20
+
+    def draw(self):
+        pygame.draw.circle(SCREEN,(50,50,50,100),(self.xpos,self.ypos),self.radius)
+        pygame.draw.circle(SCREEN,(150,150,150,100),(self.sxpos,self.sypos),self.sradius)
+
+    def update(self):
+        mpos = pygame.mouse.get_pos()
+        if self.get_dist(mpos,(self.xpos,self.ypos)) < self.radius:
+            self.sxpos,self.sypos = mpos
+        else:
+            self.sxpos = self.xpos
+            self.sypos = self.ypos
+
+    def get(self):
+        results = [False,False,False,False] # up left right down
+        results[0] = self.sypos < self.ypos - self.wiggle
+        results[1] = self.sxpos < self.xpos - self.wiggle
+        results[2] = self.sxpos > self.xpos + self.wiggle
+        results[3] = self.sypos > self.ypos + self.wiggle
+        return results
+
+    def get_dist(self,pos1,pos2):
+        return math.sqrt((pos1[0]-pos2[0])**2+(pos1[1]-pos2[1])**2)
 
 class Camerashake:
     def __init__(self):
@@ -3379,7 +3425,7 @@ deathCountBox = u.old_textbox("Number of deaths: -",font18,(SCRW//2,500),tags=["
 uptimeBox = u.old_textbox("Time Played: -",font18,(SCRW//2,550),tags=["settings"])
 resetStatsBox = u.old_textbox("RESET STATISTICS",font18,(SCRW//5,550),tags=["settings"],backgroundCol=colour.red,textCol=colour.black)
 annoyingBossesBox = u.old_textbox("Annoyinger bosses",font18,(SCRW//2,150),tags=["settings"])
-soundBox = u.old_textbox("Sound",font18,(SCRW//2,100),tags=["settings"])
+soundBox = u.old_textbox("Sound",font18,(SCRW*0.4,100),tags=["settings"])
 highResTexturesBox = u.old_textbox("Fancy Textures",font18,(SCRW*0.6,200),tags=["settings"])
 chaosModeBox = u.old_textbox("Chaos Mode",font18,(SCRW*0.4,200),tags=["settings"],backgroundCol=[100,0,0])
 chaosModifierBox = u.old_textbox("-",font18,(SCRW*0.5,50),tags=["ingame"],backgroundCol=[0,0,0])
@@ -3410,6 +3456,12 @@ confirmBox = u.old_textbox("Continue",font28,(SCRW*0.5,430),oval=True,tags=["war
 cancelBox = u.old_textbox("Cancel",font28,(SCRW*0.5,490),oval=True,tags=["warning"])
 customiseBox = u.old_textbox("Customise player",font18,(SCRW*0.7,400),oval=True,tags=["menu"])
 resetColourBox = u.old_textbox("Reset",font18,(SCRW*0.1,SCRH*0.9),tags=["customise"])
+changeControlsBox = u.old_textbox("Controls",font18,(SCRW*0.6,100),tags=["settings"])
+
+controlsBox = u.old_textbox("Select controls",font50,(SCRW*0.5,SCRH*0.2),tags=["control"])
+touchscreenBox = u.old_textbox("Touchscreen",font28,(SCRW*0.3,SCRH*0.4),tags=["control"])
+keyboardBox = u.old_textbox("Keyboard",font28,(SCRW*0.7,SCRH*0.4),tags=["control"])
+selectControlBox = u.old_textbox("Select",font28,(SCRW*0.5,SCRH*0.7),tags=["control"])
 
 editorModeBox = u.old_textbox("Link mode", font18, (SCRW // 2, 100), tags=["editor"], backgroundCol=colour.red)
 
@@ -3424,7 +3476,9 @@ boxes = [titleBox,startBox,menuBox,editorBox,selectedBox,coordBox,levelIDXBox,le
          creditsTitleBox,creditsBox,credits1,credits2,credits3,credits4,credits5,credits6,
          credits7,credits8,credits9,credits10,credits11,credits12,timerBox,startStopBox,showTimerBox,
          warningTitleBox,warningMessageBox1,warningMessageBox2,confirmBox,cancelBox,
-         customiseBox,resetColourBox,editorModeBox]
+         customiseBox,resetColourBox,editorModeBox,controlsBox,touchscreenBox,keyboardBox,
+         selectControlBox,changeControlsBox]
+
 # hard coded textboxes
 
 ##################################################
@@ -3604,7 +3658,7 @@ def reposition_boxes():
     uptimeBox.pos = (SCRW//2,550)
     resetStatsBox.pos = (SCRW//5,550)
     annoyingBossesBox.pos = (SCRW//2,150)
-    soundBox.pos = (SCRW//2,100)
+    soundBox.pos = (SCRW*0.4,100)
     editorModeBox.pos = (SCRW // 2, 100)
     highResTexturesBox.pos = (SCRW*0.6,200)
     chaosModeBox.pos = (SCRW*0.4,200)
@@ -3631,6 +3685,7 @@ def reposition_boxes():
     showTimerBox.pos = (SCRW*0.6,50)
     customiseBox.pos = (SCRW*0.7,400)
     resetColourBox.pos = (SCRW*0.1,SCRH*0.9)
+    changeControlsBox.pos = (SCRW*0.6,100)
 
     redSlider.move_to(SCRW*0.4,None)
     greenSlider.move_to(SCRW*0.4,None)
@@ -3679,7 +3734,8 @@ def tick_boxes():
                 game.chaos.action = random.randint(0,len(game.chaos.actions)-1)
                 chaosModifierBox.update_message(f"Modifier: {game.chaos.actions[game.chaos.action].capitalize()}")
                 game.chaos.state = 3
-                game.start_chaos(game.chaos.actions[game.chaos.action])
+                #game.start_chaos(game.chaos.actions[game.chaos.action])
+                game.start_chaos("invert fans")
             if game.chaos.state == 3:
                 time = ((game.chaos.displayTime+1000) - (now() - game.chaos.lastChange)) // 1000
                 if time <= 0:
@@ -3700,15 +3756,7 @@ def tick_boxes():
         game.reset_player()
 
     if menuBox.isPressed():
-        if game.scene == "editor":
-            game.save()
-            game.update_level(next=False)
-        if game.scene == "customise":
-            game.save_asthetics((redSlider.get()*255,greenSlider.get()*255,blueSlider.get()*255))
-            
-        game.scene = "menu"
-        game.reset_player()
-        #print("menu pressed")
+        esc_pressed()
 
     if editorBox.isPressed():
         game.scene = "editor"
@@ -3739,6 +3787,9 @@ def tick_boxes():
             game.achievements.achievements[key] = False
         for _ in range(2):
             game.check_achievements(announce=False)
+
+    if changeControlsBox.isPressed():
+        game.scene = "control"
 
     if annoyingBossesBox.isPressed():
         #game.settings.annoyingBosses = not game.settings.annoyingBosses
@@ -3820,6 +3871,9 @@ def tick_boxes():
         game.player.hat = -1
         game.hats.selected = -1
 
+    if selectControlBox.isPressed():
+        game.scene = "menu"
+
 def spike_convert(item,orn=0):
     if orn == 0:
         return [item[0] + 5, item[1] - 30, 40, 30]
@@ -3832,6 +3886,21 @@ def spike_convert(item,orn=0):
     else:
         raise SyntaxError("Cannot have a spike of that orientation")
     #return [item[0],item[1],40,30]
+
+def run_joystick():
+    if game.settings.controls == "touchscreen":
+        joystick.update()
+        joystick.draw()
+
+def esc_pressed():
+    if game.scene == "editor":
+        game.save()
+        game.update_level(next=False)
+    if game.scene == "customise":
+        game.save_asthetics((redSlider.get() * 255, greenSlider.get() * 255, blueSlider.get() * 255))
+    if game.scene not in ["control", "init"]:
+        game.scene = "menu"
+        game.reset_player()
 
 def go_quit():
     #game.save_log()
@@ -3847,6 +3916,8 @@ def now():
 def handle_events(move):
     global SCRW,SCRH,SCREEN
     game.editor.relativeScroll = 0
+    if game.settings.controls == "touchscreen":
+        game.player.move = joystick.get()
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -3872,18 +3943,12 @@ def handle_events(move):
                 if game.scene == "menu":
                     go_quit()
                 else:
-                    if game.scene == "editor":
-                        game.save()
-                        game.update_level(next=False)
-                    if game.scene == "customise":
-                        game.save_asthetics((redSlider.get()*255,greenSlider.get()*255,blueSlider.get()*255))
+                    esc_pressed()
 
-                    game.scene = "menu"
-                    game.reset_player()
             elif event.key in game.RESTART:
                 game.restart = True
                 
-            if move:
+            if move and game.settings.controls == "keyboard":
                 if event.key in game.UP:
                     game.player.move[0] = True
                 elif event.key in game.LEFT:
@@ -3907,6 +3972,7 @@ def handle_events(move):
 
 img = Images()
 game = Game()
+joystick = Joystick()
 levelSlots = Level_slots(len(game.data))
 
 r,g,b,a = game.player.colour
@@ -3930,7 +3996,7 @@ while True:
     SCREEN.blit(SCREEN,game.camerashake.get())
 
     pygame.display.flip()
-    SCREEN.fill((200,200,250))
+    SCREEN.fill(game.misc.menuCol)
     clock.tick(TICKRATE)
 
     handle_events(move=game.enableMovement)
@@ -3944,12 +4010,23 @@ while True:
         game.misc.hasinit = True
         game.draw_animations()
         if not game.contains_animation("first story"):
-            game.scene = "menu"
+            game.scene = "control"
 
-    if game.scene == "menu":
+    elif game.scene == "menu":
         game.camerashake.val = 0
 
-    if game.scene == "ingame":
+    elif game.scene == "control":
+        if keyboardBox.isPressed():
+            game.settings.controls = "keyboard"
+        if touchscreenBox.isPressed():
+            game.settings.controls = "touchscreen"
+
+        if game.settings.controls == "keyboard":
+            SCREEN.blit(img.image["body_with_eye"], (SCRW * 0.7, SCRH * 0.52))
+        elif game.settings.controls == "touchscreen":
+            SCREEN.blit(img.image["body_with_eye"], (SCRW * 0.3, SCRH * 0.52))
+
+    elif game.scene == "ingame":
         game.camerashake.tick()
         game.draw_gradient()
         game.generate_cloud()
@@ -3997,6 +4074,8 @@ while True:
 
         if game.chaos.actions[game.chaos.action] == "greyscale":
             pygame.transform.grayscale(SCREEN,dest_surface=SCREEN)
+
+        run_joystick()
 
     elif game.scene == "editor":
         game.draw_gradient()
