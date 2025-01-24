@@ -3757,8 +3757,8 @@ def tick_boxes():
                 game.chaos.action = random.randint(0,len(game.chaos.actions)-1)
                 chaosModifierBox.update_message(f"Modifier: {game.chaos.actions[game.chaos.action].capitalize()}")
                 game.chaos.state = 3
-                #game.start_chaos(game.chaos.actions[game.chaos.action])
-                game.start_chaos("invert fans")
+                game.start_chaos(game.chaos.actions[game.chaos.action])
+                #game.start_chaos("invert fans")
             if game.chaos.state == 3:
                 time = ((game.chaos.displayTime+1000) - (now() - game.chaos.lastChange)) // 1000
                 if time <= 0:
