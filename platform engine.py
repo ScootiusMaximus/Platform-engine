@@ -20,7 +20,7 @@ uptime = 0
 
 pygame.init()
 pygame.mixer.init()
-flags = pygame.RESIZABLE | pygame.DOUBLEBUF | pygame.HWSURFACE | pygame.SRCALPHA
+flags = pygame.RESIZABLE | pygame.DOUBLEBUF | pygame.HWSURFACE |pygame.SRCALPHA
 SCREEN = pygame.display.set_mode((SCRW,SCRH),flags)
 u.init(SCREEN)
 clock = pygame.time.Clock()
@@ -2331,16 +2331,28 @@ class Joystick:
         self.sradius = 30
         self.sxpos = self.xpos # stick xpos
         self.sypos = self.ypos # stick ypos
-        self.wiggle = 20
+        self.wiggle = 30
+        self.extra = 150
+
+    def resize(self,x,y):
+        self.xpos = x - self.radius - 50
+        self.ypos = y - self.radius - 50
 
     def draw(self):
         pygame.draw.circle(SCREEN,(50,50,50,100),(self.xpos,self.ypos),self.radius)
+        pygame.draw.circle(SCREEN,(45,45,45,100),(self.xpos,self.ypos),self.radius-3)
         pygame.draw.circle(SCREEN,(150,150,150,100),(self.sxpos,self.sypos),self.sradius)
 
     def update(self):
         mpos = pygame.mouse.get_pos()
-        if self.get_dist(mpos,(self.xpos,self.ypos)) < self.radius:
-            self.sxpos,self.sypos = mpos
+        dist = self.get_dist(mpos,(self.xpos,self.ypos))
+        if dist < self.radius + self.extra:
+            if dist > self.radius:
+                self.sxpos,self.sypos = self.get_sides(self.get_angle(mpos),self.radius)
+                self.sxpos += self.xpos
+                self.sypos += self.ypos
+            else:
+                self.sxpos,self.sypos = mpos
         else:
             self.sxpos = self.xpos
             self.sypos = self.ypos
@@ -2355,6 +2367,16 @@ class Joystick:
 
     def get_dist(self,pos1,pos2):
         return math.sqrt((pos1[0]-pos2[0])**2+(pos1[1]-pos2[1])**2)
+
+    def get_angle(self, pos):
+        dx = self.xpos - pos[0]
+        dy = self.ypos - pos[1]
+        return math.degrees(math.atan2(dy, dx)) + 180
+
+    def get_sides(self,angle,dist):
+        v = dist * math.sin(math.radians(angle))
+        h = dist * math.cos(math.radians(angle))
+        return h,v
 
 class Camerashake:
     def __init__(self):
@@ -3695,6 +3717,7 @@ def reposition_boxes():
     game.editor.linkRect.move_to(SCRW-100,SCRH-200)
     game.editor.enemyTypeRect.move_to(SCRW-100,SCRH-300)
     game.hats.resize()
+    joystick.resize(SCRW,SCRH)
 
 def tick_boxes():
     for item in boxes:
