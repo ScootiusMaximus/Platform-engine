@@ -2346,7 +2346,7 @@ class Joystick:
     def update(self):
         mpos = pygame.mouse.get_pos()
         dist = self.get_dist(mpos,(self.xpos,self.ypos))
-        if dist < self.radius + self.extra:
+        if dist < self.radius + self.extra and pygame.mouse.get_pressed()[0]:
             if dist > self.radius:
                 self.sxpos,self.sypos = self.get_sides(self.get_angle(mpos),self.radius)
                 self.sxpos += self.xpos
