@@ -1,5 +1,3 @@
-from enum import nonmember
-
 import pygame
 
 mouse = {"left":[False,False],

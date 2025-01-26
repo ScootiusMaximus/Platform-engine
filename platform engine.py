@@ -20,7 +20,7 @@ uptime = 0
 
 pygame.init()
 pygame.mixer.init()
-flags = pygame.RESIZABLE | pygame.DOUBLEBUF | pygame.HWSURFACE |pygame.SRCALPHA
+flags = pygame.RESIZABLE | pygame.DOUBLEBUF | pygame.HWSURFACE | pygame.SRCALPHA
 SCREEN = pygame.display.set_mode((SCRW,SCRH),flags)
 u.init(SCREEN)
 clock = pygame.time.Clock()
@@ -2249,7 +2249,7 @@ class Game:
                 idx = self.editor.relativeScroll + self.editor.resistTypes.index(level["resist types"][i])
                 idx = bind(0,idx,len(self.editor.resistTypes)-1)
                 level["resist types"][i] = self.editor.resistTypes[idx]
-                self.editor.selected = f"Enemy type: {level["resist types"][i].capitalize()}"
+                self.editor.selected = f"Enemy type: {level['resist types'][i].capitalize()}"
 
     def run_editor(self):
         self.handle_misc_editor_events()
@@ -2348,9 +2348,10 @@ class Joystick:
             self.ypos = y - self.radius - 50
 
     def draw(self):
-        pygame.draw.circle(SCREEN,(50,50,50,100),(self.xpos,self.ypos),self.radius)
-        pygame.draw.circle(SCREEN,(45,45,45,100),(self.xpos,self.ypos),self.radius-3)
-        pygame.draw.circle(SCREEN,(150,150,150,100),(self.sxpos,self.sypos),self.sradius)
+        pygame.draw.circle(SCREEN,(60,60,60),(self.xpos,self.ypos),self.radius)
+        pygame.draw.circle(SCREEN,(45,45,45),(self.xpos,self.ypos),self.radius-5)
+        pygame.draw.circle(SCREEN,(150,150,150),(self.sxpos,self.sypos),self.sradius)
+        pygame.draw.circle(SCREEN,(180,180,180),(self.sxpos,self.sypos),self.sradius-5)
 
     def update(self):
         mpos = pygame.mouse.get_pos()
