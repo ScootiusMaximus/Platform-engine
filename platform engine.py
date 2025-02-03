@@ -20,7 +20,7 @@ uptime = 0
 
 pygame.init()
 pygame.mixer.init()
-flags = pygame.RESIZABLE | pygame.DOUBLEBUF | pygame.HWSURFACE | pygame.SRCALPHA
+flags = pygame.RESIZABLE | pygame.HWSURFACE | pygame.SRCALPHA
 SCREEN = pygame.display.set_mode((SCRW,SCRH),flags)
 u.init(SCREEN)
 clock = pygame.time.Clock()
@@ -90,6 +90,7 @@ class Images:
                     pygame.image.load("electric_v_1.png"),pygame.image.load("electric_v_2.png")],
         "electric_end":[],
         "zap":[pygame.image.load("zap1.png"),pygame.image.load("zap2.png")],
+        "story2":pygame.image.load("story2.png"),
         }
         for i in range(10):
             name = f"code{i+1}.png"
@@ -1438,6 +1439,9 @@ class Game:
                             mob.wallData[4] = True
                             mob.hitbox.collideWhole = plat
                             mob.floorMaterial = "appearing platform"
+
+        if True in self.player.wallData:
+            self.sound.end_fall()
 
     def handle_spike_collision(self):
         spikeRects = []
@@ -3401,7 +3405,7 @@ class Hat_Selector:
 class First_Story(Animation):
     def __init__(self):
         super().__init__(0,0)
-        self.name = "first story"
+        self.name = "story"
         self.interval = 1000
 
         self.message = [
@@ -3436,8 +3440,38 @@ class First_Story(Animation):
             if self.frame in [1,4,7,10]:
                 game.camerashake.add(20)
 
-##################################################
+class Second_Story(Animation):
+    def __init__(self,img):
+        super().__init__(0,0)
+        self.name = "story"
+        self.interval = 300
+        self.img = img
+        self.count = now()
+        self.message = [
+            u.old_textbox("That was just a minion",fontDramatic,(SCRW*0.5,SCRH*0.2)),
+            u.old_textbox("A weaker version of the game dev",fontDramatic,(SCRW*0.5,SCRH*0.2)),
+            u.old_textbox("There will be more...",fontDramatic,(SCRW*0.5,SCRH*0.2)),
+        ]
 
+    def draw(self):
+        SCREEN.fill((0,0,0))
+        blitImg = self.img.copy()
+        blitImg.set_alpha(120*(abs(math.sin(math.radians((now()-self.count)/70)))))
+        pos = (SCREEN.get_rect().center[0]-blitImg.get_rect().center[0],
+               SCREEN.get_rect().center[1]-blitImg.get_rect().center[1])
+        SCREEN.blit(blitImg,pos)
+        if self.frame > 25:
+            self.message[2].display()
+        elif self.frame > 15:
+            self.message[1].display()
+        elif self.frame > 5:
+            self.message[0].display()
+
+        if self.frame > 40:
+            self.finished = True
+
+
+##################################################
 
 titleBox = u.old_textbox("PLATFORM GAME",fontTitle,(SCRW//2,150),backgroundCol=None,tags=["menu"])
 startBox = u.old_textbox("PLAY",font28,(SCRW//2,400),oval=True,tags=["menu"])
@@ -3951,6 +3985,11 @@ def esc_pressed():
         game.scene = "menu"
         game.reset_player()
 
+def check_story():
+    if game.levelIDX == 10 and game.player.atFinish:
+        game.scene = "story"
+        game.animations.append(Second_Story(img.image["story2"]))
+
 def go_quit():
     #game.save_log()
     game.save_stats()
@@ -4057,8 +4096,13 @@ while True:
         game.camerashake.tick()
         game.misc.hasinit = True
         game.draw_animations()
-        if not game.contains_animation("first story"):
+        if not game.contains_animation("story"):
             game.scene = "control"
+
+    elif game.scene == "story":
+        game.draw_animations()
+        if not game.contains_animation("story"):
+            game.scene = "ingame"
 
     elif game.scene == "menu":
         game.camerashake.val = 0
@@ -4075,6 +4119,7 @@ while True:
             SCREEN.blit(img.image["body_with_eye"], (SCRW * 0.3, SCRH * 0.52))
 
     elif game.scene == "ingame":
+        check_story()
         game.camerashake.tick()
         game.draw_gradient()
         game.generate_cloud()
@@ -4165,7 +4210,7 @@ while True:
         ms = game.stats.playTime# + now())
         secs = (ms // 1000) % 60
         mins = (ms // (1000*60)) % 60
-        hours = (ms // (1000*60*60)) % 60
+        hours = (ms // (1000*60*60))
         uptime = f"Time played: {hours}h {mins}m {secs}s"
             
         collectedStarsBox.update_message(f"Stars collected: {starCount}")
