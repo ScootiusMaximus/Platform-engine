@@ -56,7 +56,8 @@ class old_textbox:
         else:
             self.textRect.topleft = self.pos
         if self.oval:
-            pygame.draw.ellipse(SCREEN,self.backgroundCol,self.textRect)
+            newRect = [self.textRect[0]-5,self.textRect[1]-5,self.textRect[2]+10,self.textRect[3]+10]
+            pygame.draw.ellipse(SCREEN,self.backgroundCol,newRect)
         SCREEN.blit(text, self.textRect)
 
     def update_message(self, message='Textbox'):

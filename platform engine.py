@@ -9,14 +9,18 @@ import sys
 import utility as u
 import webbrowser as w
 
-
+WEBMODE = False
 SCRW = 800
 SCRH = 600
 TICKRATE = 60
-FONT = "mvboli"
-FONTSIZEBASE = 18
+FONTSIZEBASE = 22
 
 uptime = 0
+
+audiowide = "fonts/Audiowide/Audiowide-Regular.ttf"
+bruno_ace =  "fonts/Bruno_Ace_SC/BrunoAceSC-Regular.ttf"
+sour_gummy = "fonts/Sour_Gummy/SourGummy-Light.ttf"
+FONT = sour_gummy
 
 pygame.init()
 pygame.mixer.init()
@@ -26,12 +30,12 @@ u.init(SCREEN)
 clock = pygame.time.Clock()
 pygame.display.set_caption("Platform game!")
 pygame.display.set_icon(pygame.image.load("platform icon.bmp"))
-font10 = pygame.font.SysFont(FONT,FONTSIZEBASE-8)
-font18 = pygame.font.SysFont(FONT,FONTSIZEBASE)
-font28 = pygame.font.SysFont(FONT,FONTSIZEBASE+10)
-font50 = pygame.font.SysFont(FONT,FONTSIZEBASE+32)
-fontDramatic = pygame.font.SysFont("inkfree",FONTSIZEBASE+20)
-fontTitle = pygame.font.SysFont("courier new",70)
+font10 = pygame.font.Font(sour_gummy,FONTSIZEBASE-8)
+font18 = pygame.font.Font(sour_gummy,FONTSIZEBASE)
+font28 = pygame.font.Font(sour_gummy,FONTSIZEBASE+10)
+font50 = pygame.font.Font(sour_gummy,FONTSIZEBASE+32)
+fontDramatic = pygame.font.Font(audiowide,FONTSIZEBASE+20)
+fontTitle = pygame.font.Font(bruno_ace,60)
 fontTitle.set_bold(True)
 fontDramatic.set_bold(True)
 
@@ -91,6 +95,7 @@ class Images:
         "electric_end":[],
         "zap":[pygame.image.load("zap1.png"),pygame.image.load("zap2.png")],
         "story2":pygame.image.load("story2.png"),
+        "light":pygame.image.load("light.png"),
         }
         for i in range(10):
             name = f"code{i+1}.png"
@@ -564,6 +569,118 @@ class Notification:
         self.titleBox.display()
         self.bodyBox.display()
 
+class Graphics:
+    def __init__(self):
+        self.camera_x = 0
+        self.camera_y = 0
+        self.img = Images()
+
+    def set_camera(self,target):
+        self.camera_x = target.xpos
+        self.camera_y = target.ypos
+
+    def draw_enemy(self,enemy):
+        if enemy.resist == "electric":
+            image = self.img.image["enemy_body_electric"]
+        elif enemy.resist == "spike":
+            image = self.img.image["enemy_body_spike"]
+        elif enemy.resist == "bomb":
+            image = self.img.image["enemy_body_bomb"]
+        elif enemy.resist == "saw":
+            image = self.img.image["enemy_body_saw"]
+        else:
+            image = self.img.image["enemy_body"]
+
+        blitToCam(image, (enemy.xpos - enemy.width // 2, enemy.ypos - (enemy.height // 2) + 10))
+        pygame.draw.circle(SCREEN, colour.white,((SCRW // 2) - self.camera_x + enemy.xpos, (SCRH // 2) + 5 - self.camera_y + enemy.ypos),10)
+        if enemy.xvel == 0:
+            pygame.draw.circle(SCREEN, colour.black, (
+            SCRW // 2 - self.camera_x + enemy.xpos, (SCRH // 2) + 5 - self.camera_y + enemy.ypos), 7)
+            pygame.draw.circle(SCREEN, colour.white, (
+            (SCRW // 2) + 2 - self.camera_x + enemy.xpos, (SCRH // 2) + 6 - self.camera_y + enemy.ypos), 2)
+            pygame.draw.circle(SCREEN, colour.white, (
+            (SCRW // 2) - self.camera_x + enemy.xpos, (SCRH // 2) + 7 - self.camera_y + enemy.ypos), 1)
+
+        else:
+            if enemy.xvel < 0:
+                pygame.draw.circle(SCREEN, colour.black, (
+                (SCRW // 2) - 3 - self.camera_x + enemy.xpos, (SCRH // 2) + 5 - self.camera_y + enemy.ypos), 7)
+                pygame.draw.circle(SCREEN, colour.white, (
+                (SCRW // 2) - 1 - self.camera_x + enemy.xpos, (SCRH // 2) + 6 - self.camera_y + enemy.ypos), 2)
+                pygame.draw.circle(SCREEN, colour.white, (
+                (SCRW // 2) - 3 - self.camera_x + enemy.xpos, (SCRH // 2) + 7 - self.camera_y + enemy.ypos), 1)
+            elif enemy.xvel > 0:
+                pygame.draw.circle(SCREEN, colour.black, (
+                (SCRW // 2) + 3 - self.camera_x + enemy.xpos, (SCRH // 2) + 5 - self.camera_y + enemy.ypos), 7)
+                pygame.draw.circle(SCREEN, colour.white, (
+                (SCRW // 2) + 5 - self.camera_x + enemy.xpos, (SCRH // 2) + 6 - self.camera_y + enemy.ypos), 2)
+                pygame.draw.circle(SCREEN, colour.white, (
+                (SCRW // 2) + 3 - self.camera_x + enemy.xpos, (SCRH // 2) + 7 - self.camera_y + enemy.ypos), 1)
+
+    def draw_player(self,player):
+        if player.img == None:
+            pygame.draw.rect(SCREEN,player.colour,((SCRW//2)-20,(SCRH//2)-20,40,40))
+        else:
+            SCREEN.blit(player.img,((SCRW-player.width)//2,(SCRH-player.height)//2))
+
+        if not player.isBlinking:
+            pygame.draw.circle(SCREEN,colour.white,(SCRW//2,(SCRH//2)-5),10)
+            if not (player.move[1] or player.move[2]):
+                pygame.draw.circle(SCREEN,colour.black,(SCRW//2,(SCRH//2)-4),7)
+                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)+2,(SCRH//2)-3),2)
+                pygame.draw.circle(SCREEN,colour.white,((SCRW//2),(SCRH//2)-2),1)
+            else:
+                if player.move[1]:
+                    pygame.draw.circle(SCREEN,colour.black,((SCRW//2)-3,(SCRH//2)-4),7)
+                    pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-1,(SCRH//2)-3),2)
+                    pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-3,(SCRH//2)-2),1)
+                elif player.move[2]:
+                    pygame.draw.circle(SCREEN,colour.black,((SCRW//2)+3,(SCRH//2)-4),7)
+                    pygame.draw.circle(SCREEN,colour.white,((SCRW//2)+5,(SCRH//2)-3),2)
+                    pygame.draw.circle(SCREEN,colour.white,((SCRW//2)+3,(SCRH//2)-2),1)
+
+    def draw_jumping_enemy(self,enemy):
+        blitToCam(enemy.img[enemy.state], enemy.center)
+        xcorrect = enemy.center[0] + enemy.width
+        ycorrect = enemy.center[1] + enemy.height - 4 - (enemy.state * 8)
+
+        pygame.draw.circle(SCREEN, colour.white,
+                           ((SCRW // 2) - self.camera_x + xcorrect, (SCRH // 2) + 5 - self.camera_y + ycorrect),
+                           10)
+        if enemy.xvel == 0:
+            pygame.draw.circle(SCREEN, colour.black, (
+            SCRW // 2 - self.camera_x + xcorrect , (SCRH // 2) + 5 - self.camera_y + ycorrect), 7)
+            pygame.draw.circle(SCREEN, colour.white, (
+            (SCRW // 2) + 2 - self.camera_x + xcorrect, (SCRH // 2) + 6 - self.camera_y + ycorrect), 2)
+            pygame.draw.circle(SCREEN, colour.white, (
+            (SCRW // 2) - self.camera_x + xcorrect, (SCRH // 2) + 7 - self.camera_y + ycorrect), 1)
+
+        else:
+            if enemy.xvel < 0:
+                pygame.draw.circle(SCREEN, colour.black, (
+                (SCRW // 2) - 3 - self.camera_x + xcorrect, (SCRH // 2) + 5 - self.camera_y + ycorrect), 7)
+                pygame.draw.circle(SCREEN, colour.white, (
+                (SCRW // 2) - 1 - self.camera_x + xcorrect, (SCRH // 2) + 6 - self.camera_y + ycorrect), 2)
+                pygame.draw.circle(SCREEN, colour.white, (
+                (SCRW // 2) - 3 - self.camera_x + xcorrect, (SCRH // 2) + 7 - self.camera_y + ycorrect), 1)
+            elif enemy.xvel > 0:
+                pygame.draw.circle(SCREEN, colour.black, (
+                (SCRW // 2) + 3 - self.camera_x + xcorrect, (SCRH // 2) + 5 - self.camera_y + ycorrect), 7)
+                pygame.draw.circle(SCREEN, colour.white, (
+                (SCRW // 2) + 5 - self.camera_x + xcorrect, (SCRH // 2) + 6 - self.camera_y + ycorrect), 2)
+                pygame.draw.circle(SCREEN, colour.white, (
+                (SCRW // 2) + 3 - self.camera_x + xcorrect, (SCRH // 2) + 7 - self.camera_y + ycorrect), 1)
+
+    def draw_boss(self,enemy):
+        blitToCam(self.img.image["boss_img"], (enemy.xpos - enemy.width, enemy.ypos - enemy.height))
+        enemy.hb.draw()
+
+        # sendToCam(list(self.hitbox.bottom), "hitbox", col=colour.white)
+        # sendToCam(list(self.hitbox.left),"hitbox",col=colour.white)
+        # sendToCam(list(self.hitbox.right),"hitbox",col=colour.white)
+        # sendToCam(list(self.hitbox.top),"hitbox",col=colour.white)
+        # sendToCam(list(self.hitbox.whole),"hitbox",col=colour.white)
+
 class Game:
     def __init__(self):
         self.gravity = 0.981
@@ -574,6 +691,7 @@ class Game:
         self.editor = Editor()
         self.img = Images()
         self.player = Player(gravity=self.gravity, img=self.img.image["body"])
+        self.graphics = Graphics()
         self.sound = Soundboard()
         self.settings = Settings()
         self.stats = Stats()
@@ -630,6 +748,9 @@ class Game:
         self.electricStates = []
         self.electricHitboxes = []
         self.entities = []
+        self.lights = []
+        self.lightEntities = []
+        self.brightness = 255
 
         self.events = [False,False]
         # events should be:
@@ -1144,7 +1265,7 @@ class Game:
                 mob.fix_center()
                 mob.tick()
                 mob.update_hitboxes()
-                mob.draw()
+                self.graphics.draw_enemy(mob)
                 mob.update_target((self.player.xpos,self.player.ypos))
                 mob.pathfind()
             else:
@@ -1154,7 +1275,7 @@ class Game:
         for mob in self.jumpingEnemyEntities:
             if not mob.needsDel:
                 mob.fix_center()
-                mob.draw()
+                self.graphics.draw_jumping_enemy(mob)
                 mob.update_target((self.player.xpos,self.player.ypos))
                 # mob.check_vision() handled in game.handle_spike_collision()
                 mob.pathfind()
@@ -1172,7 +1293,7 @@ class Game:
                 bToDel.append(mob)
             mob.fix_center()
             mob.update_hitbox()
-            mob.draw()
+            self.graphics.draw_boss(mob)
             mob.tick_projectiles()
             mob.update_target((self.player.xpos, self.player.ypos))
 
@@ -1647,7 +1768,6 @@ class Game:
         #print(f"player ypos: {self.player.ypos}, yvel: {self.player.yvel}")
 
     def update_level(self,next=False):
-        #print("level updated")
         if next:
             self.levelIDX += 1
 
@@ -1676,6 +1796,8 @@ class Game:
         self.saws = []
         self.electric = []
         self.electricStates = []
+        self.lights = []
+        self.lightEntities = []
 
         self.spawnPoint = []
 
@@ -1726,6 +1848,8 @@ class Game:
                 self.data[str(self.levelIDX)]["electric"] = []
             if "saws" not in self.data[str(self.levelIDX)]:
                 self.data[str(self.levelIDX)]["saws"] = []
+            if "lights" not in self.data[str(self.levelIDX)]:
+                self.data[str(self.levelIDX)]["lights"] = []
 
         except KeyError: # should only happen if missing the entire level number
             self.data[str(self.levelIDX)] = {
@@ -1750,11 +1874,17 @@ class Game:
                 "ice":[],
                 "electric":[],
                 "saws":[],
+                "lights":[],
             }
 
         level = self.data[str(self.levelIDX)]
 
-        self.spawnPoint = self.data[str(self.levelIDX)]["start"]
+        if "brightness" in level:
+            self.brightness = level["brightness"]
+        else:
+            self.brightness = 0
+
+        self.spawnPoint = level["start"]
         for item in level["platforms"]:
             self.platforms.append(item)
         for item in level["spikes"]:
@@ -1818,6 +1948,9 @@ class Game:
             self.saws.append(item)
         for item in level["electric"]:
             self.electric.append(item)
+        for item in level["lights"]:
+            self.lights.append(item)
+            self.lightEntities.append(Light(SCREEN,item[0],item[1],150,depth=150))
 
         self.orient_spikes()
         self.orient_electric()
@@ -1934,6 +2067,9 @@ class Game:
             for item in self.bombs:
                 blitToCam(self.img.image["bomb"],item)
 
+        for item in self.lights:
+            blitToCam(self.img.image["light"],item)
+
     def draw_grid(self):
         for i in range((SCRW//50)+2):
             x = (i*50) - (self.player.xpos%50) + (self.settings.SCRWEX//2)
@@ -1993,6 +2129,8 @@ class Game:
         # saw
         SCREEN.blit(self.img.image["electric"][0],(10,965+scr))
         # electric
+        SCREEN.blit(self.img.image["light"], (10, 1025 + scr))
+        # electric
 
     def check_selected(self):
         mouseRect = toRect(self.editor.mouseRect)
@@ -2011,6 +2149,7 @@ class Game:
         self.editor.scroll = e
         for i in range(len(self.editor.itemRects)):  # account for scrolling
             r = self.editor.originalItemRects[i]
+            # noinspection PyTypeChecker
             self.editor.itemRects[i] = [r[0], r[1] + e, r[2], r[3]]
 
         self.editor.mouseRect[0], self.editor.mouseRect[1] = pygame.mouse.get_pos()
@@ -2176,6 +2315,12 @@ class Game:
                 elif self.editor.selected == "electric":
                     self.data[str(self.levelIDX)]["electric"].append(truncPos)
 
+                elif self.editor.selected == "light":
+                    self.data[str(self.levelIDX)]["lights"].append(truncPos)
+                    #self.lightEntities.append(
+                    #    Light(SCREEN, truncPos[0], truncPos[1], 100, depth=20, img=self.img.image["light"]))
+                    #print("he")
+
                 self.update_level(next=False)
 
             if self.editor.clicksR == [True, False]:  # RMB
@@ -2241,6 +2386,11 @@ class Game:
                     if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
                         self.data[str(self.levelIDX)]["electric"].remove(item)
 
+                for i in range(len(self.lights)):
+                    if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect(self.lights[i])):
+                        self.data[str(self.levelIDX)]["lights"].remove(self.lights[i])
+                        #self.lightEntities.pop(i)
+
                 self.update_level(next=False)
 
     def run_enemy_type_editor(self):
@@ -2271,6 +2421,14 @@ class Game:
             pos = (rawPos[0]+25,rawPos[1]+10)
             boxCopy = u.old_textbox(box.message,font18,pos)
             boxCopy.display()
+
+    def draw_lighting(self):
+        s = pygame.Surface((SCRW,SCRH))
+        s.fill((0,0,0))
+        s.set_alpha(self.brightness)
+        SCREEN.blit(s,(0,0))
+        for item in self.lightEntities:
+            item.draw()
 
     def make_button_boxes(self):
         self.editor.buttonIndexBoxes = []
@@ -2323,7 +2481,7 @@ class Editor:
         self.ref = ["platform","spike","end","fan base",
                     "fan column","star","enemy", "jumping enemy",
                     "checkpoint","boss","button","disappearing platform",
-                    "appearing platform","bomb","ice","saw","electric"]
+                    "appearing platform","bomb","ice","saw","electric","light"]
         self.resistTypes = ["none","spike","bomb","electric","saw"]
 
         for i in range(50):
@@ -2391,6 +2549,32 @@ class Joystick:
         v = dist * math.sin(math.radians(angle))
         h = dist * math.cos(math.radians(angle))
         return h,v
+
+class Light:
+    def __init__(self,surface,xpos,ypos,radius,colour=(200,200,150),depth=5):
+        self.screen = surface
+        self.xpos = xpos
+        self.ypos = ypos
+        self.radius = radius
+        self.col = colour
+        self.depth = depth
+
+        self.surf = pygame.Surface((self.radius*2,self.radius*2))
+        self.surf.set_colorkey((0,0,0))
+
+        for i in range(self.depth):
+            j = (self.depth - i)
+            #c = ((self.col[0]*i)//self.depth,(self.col[1]*i)//self.depth,(self.col[2]*i)//self.depth)
+            #c = ((self.col[0]*i)/self.depth,(self.col[1]*i)/self.depth,(self.col[2]*i)/self.depth)
+            k = lambda x: (((x * i) / self.depth)**2 ) / 255
+            c = (tuple(map(k,self.col)))
+            pygame.draw.circle(self.surf,c,(self.radius,self.radius),(self.radius*j)//self.depth)
+        #pygame.draw.circle(self.surf,self.col,(self.radius,self.radius),self.radius//2)#
+
+    def draw(self):
+        self.screen.blit(self.surf,(self.xpos-game.player.xpos + SCRW//2-self.radius +25,
+                                    self.ypos-game.player.ypos + SCRH//2-self.radius +20),special_flags=pygame.BLEND_RGBA_ADD)
+        #self.screen.blit(self.img,(self.xpos-game.player.xpos + SCRW//2,self.ypos-game.player.ypos + SCRH//2))
 
 class Camerashake:
     def __init__(self):
@@ -2505,32 +2689,6 @@ class Player(Physics_Object):
         #self.update_hitboxes()
         #self.rect = pygame.Rect(self.player.xpos-25,self.player.ypos-25,50,50)
 
-    def draw(self):
-##        self.colour = rgb.get()
-##        rgb.tick()
-        if self.img == None:
-            pygame.draw.rect(SCREEN,self.colour,((SCRW//2)-20,(SCRH//2)-20,40,40))
-        else:
-            SCREEN.blit(self.img,((SCRW-self.width)//2,(SCRH-self.height)//2))
-        # everything else in the draw function is not necessary
-        if not self.isBlinking:
-            pygame.draw.circle(SCREEN,colour.white,(SCRW//2,(SCRH//2)-5),10)
-
-            if not (self.move[1] or self.move[2]):        
-                pygame.draw.circle(SCREEN,colour.black,(SCRW//2,(SCRH//2)-4),7)
-                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)+2,(SCRH//2)-3),2)
-                pygame.draw.circle(SCREEN,colour.white,((SCRW//2),(SCRH//2)-2),1)
-
-            else:
-                if self.move[1]:
-                    pygame.draw.circle(SCREEN,colour.black,((SCRW//2)-3,(SCRH//2)-4),7)
-                    pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-1,(SCRH//2)-3),2)
-                    pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-3,(SCRH//2)-2),1)
-                elif self.move[2]:
-                    pygame.draw.circle(SCREEN,colour.black,((SCRW//2)+3,(SCRH//2)-4),7)
-                    pygame.draw.circle(SCREEN,colour.white,((SCRW//2)+5,(SCRH//2)-3),2)
-                    pygame.draw.circle(SCREEN,colour.white,((SCRW//2)+3,(SCRH//2)-2),1)
-
     def update_hitboxes(self):
         self.hitbox.whole = toRect([self.xpos-20,self.ypos-19,40,40])
         self.hitbox.top = toRect([self.xpos-10,self.ypos-19,20,20])
@@ -2627,24 +2785,6 @@ class Enemy(Physics_Object):
                 #print("<")
         else:
             self.xvel = self.xvel * 0.8
-
-    def draw(self):
-        blitToCam(self.img,(self.xpos-self.width//2,self.ypos-(self.height//2)+10))
-        pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-game.player.xpos+self.xpos,(SCRH//2)+5-game.player.ypos+self.ypos),10)
-        if self.xvel == 0:        
-                pygame.draw.circle(SCREEN,colour.black,(SCRW//2-game.player.xpos+self.xpos,(SCRH//2)+5-game.player.ypos+self.ypos),7)
-                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)+2-game.player.xpos+self.xpos,(SCRH//2)+6-game.player.ypos+self.ypos),2)
-                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-game.player.xpos+self.xpos,(SCRH//2)+7-game.player.ypos+self.ypos),1)
-
-        else:
-            if self.xvel < 0:
-                pygame.draw.circle(SCREEN,colour.black,((SCRW//2)-3-game.player.xpos+self.xpos,(SCRH//2)+5-game.player.ypos+self.ypos),7)
-                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-1-game.player.xpos+self.xpos,(SCRH//2)+6-game.player.ypos+self.ypos),2)
-                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)-3-game.player.xpos+self.xpos,(SCRH//2)+7-game.player.ypos+self.ypos),1)
-            elif self.xvel > 0:
-                pygame.draw.circle(SCREEN,colour.black,((SCRW//2)+3-game.player.xpos+self.xpos,(SCRH//2)+5-game.player.ypos+self.ypos),7)
-                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)+5-game.player.xpos+self.xpos,(SCRH//2)+6-game.player.ypos+self.ypos),2)
-                pygame.draw.circle(SCREEN,colour.white,((SCRW//2)+3-game.player.xpos+self.xpos,(SCRH//2)+7-game.player.ypos+self.ypos),1)
 
     def update_hitboxes(self):
         self.hitbox.whole = toRect([self.xpos-20,self.ypos-19,40,40])
@@ -2779,38 +2919,6 @@ class Jumping_Enemy(Enemy):
         #    col = colour.green if self.visionResults[i] else colour.red
         #    sendToCam(self.vision[i], "hitbox", col)
 
-    def draw(self):
-        blitToCam(self.img[self.state], self.center)
-        xcorrect = self.center[0] + self.width
-        ycorrect = self.center[1] + self.height - 4 - (self.state * 8)
-
-        pygame.draw.circle(SCREEN, colour.white,
-                           ((SCRW // 2) - game.player.xpos + xcorrect, (SCRH // 2) + 5 - game.player.ypos + ycorrect),
-                           10)
-        if self.xvel == 0:
-            pygame.draw.circle(SCREEN, colour.black, (
-            SCRW // 2 - game.player.xpos + xcorrect , (SCRH // 2) + 5 - game.player.ypos + ycorrect), 7)
-            pygame.draw.circle(SCREEN, colour.white, (
-            (SCRW // 2) + 2 - game.player.xpos + xcorrect, (SCRH // 2) + 6 - game.player.ypos + ycorrect), 2)
-            pygame.draw.circle(SCREEN, colour.white, (
-            (SCRW // 2) - game.player.xpos + xcorrect, (SCRH // 2) + 7 - game.player.ypos + ycorrect), 1)
-
-        else:
-            if self.xvel < 0:
-                pygame.draw.circle(SCREEN, colour.black, (
-                (SCRW // 2) - 3 - game.player.xpos + xcorrect, (SCRH // 2) + 5 - game.player.ypos + ycorrect), 7)
-                pygame.draw.circle(SCREEN, colour.white, (
-                (SCRW // 2) - 1 - game.player.xpos + xcorrect, (SCRH // 2) + 6 - game.player.ypos + ycorrect), 2)
-                pygame.draw.circle(SCREEN, colour.white, (
-                (SCRW // 2) - 3 - game.player.xpos + xcorrect, (SCRH // 2) + 7 - game.player.ypos + ycorrect), 1)
-            elif self.xvel > 0:
-                pygame.draw.circle(SCREEN, colour.black, (
-                (SCRW // 2) + 3 - game.player.xpos + xcorrect, (SCRH // 2) + 5 - game.player.ypos + ycorrect), 7)
-                pygame.draw.circle(SCREEN, colour.white, (
-                (SCRW // 2) + 5 - game.player.xpos + xcorrect, (SCRH // 2) + 6 - game.player.ypos + ycorrect), 2)
-                pygame.draw.circle(SCREEN, colour.white, (
-                (SCRW // 2) + 3 - game.player.xpos + xcorrect, (SCRH // 2) + 7 - game.player.ypos + ycorrect), 1)
-
 class Bomb(Physics_Object):
     def __init__(self,xpos,ypos,img,gravity):
         super().__init__(xpos,ypos,gravity)
@@ -2859,16 +2967,6 @@ class Boss(Enemy):
         self.stateChangeInterval = 3000
 
         self.update_image(self.img)
-
-    def draw(self):
-        blitToCam(self.img,(self.xpos-self.width,self.ypos-self.height))
-        self.hb.draw()
-
-        #sendToCam(list(self.hitbox.bottom), "hitbox", col=colour.white)
-        #sendToCam(list(self.hitbox.left),"hitbox",col=colour.white)
-        #sendToCam(list(self.hitbox.right),"hitbox",col=colour.white)
-        #sendToCam(list(self.hitbox.top),"hitbox",col=colour.white)
-        #sendToCam(list(self.hitbox.whole),"hitbox",col=colour.white)
 
     def update_hitbox(self):
         pos = get_screen_pos((self.xpos, self.ypos,0,0))
@@ -3832,7 +3930,7 @@ def tick_boxes():
     if menuBox.isPressed():
         esc_pressed()
 
-    if editorBox.isPressed():
+    if editorBox.isPressed() and not WEBMODE:
         game.scene = "editor"
         game.enableMovement = True
         game.orient_spikes()
@@ -4058,6 +4156,14 @@ def handle_events(move):
 
 ##################################################
 
+#orig = pygame.draw.circle
+
+#def x(surf,col,center,radius,*args):
+#    new_col = tuple(map(lambda x: bind(0, x * 2, 255),col))
+#    orig(surf,new_col,center,radius,*args)
+
+#pygame.draw.circle = x
+
 img = Images()
 game = Game()
 levelSlots = Level_slots(len(game.data))
@@ -4120,23 +4226,16 @@ while True:
 
     elif game.scene == "ingame":
         check_story()
+        game.graphics.set_camera(game.player)
         game.camerashake.tick()
         game.draw_gradient()
         game.generate_cloud()
-        game.draw_bg()
         game.tick_enemies()
         game.tick()
         game.correct_mobs() # this one
         game.tick_player()
         #game.correct_mobs()  # temp?
         game.player.update_hitboxes()
-        if game.enableMovement:
-            game.player.draw()
-            if game.player.hat != -1:
-                hat = game.img.image["hats"][game.player.hat]
-                SCREEN.blit(hat,((SCRW-hat.get_width())//2,((SCRH-hat.get_height())//2)-game.player.height+6))
-        game.draw_animations()
-        
         if game.player.ypos > 5000 or game.player.isDead:
             game.player.isDead = True
             #game.trigger_death()
@@ -4151,6 +4250,15 @@ while True:
             #game.trigger_death(die=False)
         levelIDXBox.update_message("Level " + str(game.levelIDX))
 
+        game.draw_bg()
+        if game.enableMovement:
+            game.graphics.draw_player(game.player)
+            if game.player.hat != -1:
+                hat = game.img.image["hats"][game.player.hat]
+                SCREEN.blit(hat,
+                            ((SCRW - hat.get_width()) // 2, ((SCRH - hat.get_height()) // 2) - game.player.height + 6))
+        game.draw_animations()
+        game.draw_lighting()
 #        sendToCam(list(game.player.hitbox.bottom),"hitbox",col=colour.white)
 #        sendToCam(list(game.player.hitbox.left),"hitbox",col=colour.white)
 #        sendToCam(list(game.player.hitbox.right),"hitbox",col=colour.white)
@@ -4181,6 +4289,7 @@ while True:
         coordBox.update_message(( str(acx) + "," + str(acy) ))
         editorModeBox.update_message(f"{game.editor.mode.capitalize()}")
 
+
         game.draw_grid()
         #game.run_editor() # temp
         game.tick_button_platforms()
@@ -4188,6 +4297,9 @@ while True:
         game.check_selected()
         game.run_editor()
         game.player.free_cam()
+
+        game.draw_lighting()
+
         game.draw_editor_menu()
 
     elif game.scene == "levels":
