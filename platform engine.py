@@ -10,10 +10,10 @@ import utility as u
 import webbrowser as w
 
 WEBMODE = False
-SCRW = 800
-SCRH = 600
+SCRW = 1000
+SCRH = 700
 TICKRATE = 60
-FONTSIZEBASE = 22
+FONTSIZE = 22
 
 uptime = 0
 
@@ -30,11 +30,12 @@ u.init(SCREEN)
 clock = pygame.time.Clock()
 pygame.display.set_caption("Platform game!")
 pygame.display.set_icon(pygame.image.load("platform icon.bmp"))
-font10 = pygame.font.Font(sour_gummy,FONTSIZEBASE-8)
-font18 = pygame.font.Font(sour_gummy,FONTSIZEBASE)
-font28 = pygame.font.Font(sour_gummy,FONTSIZEBASE+10)
-font50 = pygame.font.Font(sour_gummy,FONTSIZEBASE+32)
-fontDramatic = pygame.font.Font(audiowide,FONTSIZEBASE+20)
+font10 = pygame.font.Font(sour_gummy, FONTSIZE - 8)
+font12 = pygame.font.Font(sour_gummy, FONTSIZE - 4)
+font18 = pygame.font.Font(sour_gummy, FONTSIZE)
+font28 = pygame.font.Font(sour_gummy, FONTSIZE + 10)
+font50 = pygame.font.Font(sour_gummy, FONTSIZE + 32)
+fontDramatic = pygame.font.Font(audiowide, FONTSIZE + 20)
 fontTitle = pygame.font.Font(bruno_ace,60)
 fontTitle.set_bold(True)
 fontDramatic.set_bold(True)
@@ -70,8 +71,10 @@ class Images:
         "enemy_type":pygame.image.load("enemy_type.png"),
         "build":pygame.image.load("build.png"),
         "rock" : pygame.image.load("rock.png"),
+        "dark_rock" : pygame.image.load("dark_rock.png"),
         "disappearing_rock" : pygame.image.load("disappearing_rock.png"),
         "appearing_rock" : pygame.image.load("appearing_rock.png"),
+        "window": pygame.image.load("window.png"),
         "bomb" : pygame.image.load("bomb.png"),
         "bomb_lit": pygame.image.load("bomb_lit.png"),
         "ice": pygame.image.load("ice.png"),
@@ -504,10 +507,8 @@ class Achievements:
         for key in self.achievements:
             col = (255,0,0) if not self.achievements[key] else (0,255,0)
             self.slots.append(u.old_textbox(
-                f"{self.messages[key][0]}: {self.messages[key][1]}",
-                pygame.font.SysFont(FONT,FONTSIZEBASE-3),
-                (x, y),
-                backgroundCol=col,center=False))
+                f"{self.messages[key][0]}: {self.messages[key][1]}",font12,
+                (x, y),backgroundCol=col,center=False))
             y += 40
             if y > SCRH-40:
                 y = 100
@@ -520,11 +521,11 @@ class Achievements:
             item.isShowing = False
 
 class Notification:
-    def __init__(self,title,body,time=5000,font=FONT,size=FONTSIZEBASE):
+    def __init__(self, title, body, time=5000, font=FONT, size=FONTSIZE):
         self.width = 200
         self.height = 40
         self.xpos = 0
-        self.ypos = SCRH- self.height
+        self.ypos = SCRH - self.height
         self.title = title
         self.body = body
         self.time = time
@@ -534,21 +535,21 @@ class Notification:
         self.needsDel = False
 
         if len(self.title) < 10:
-            titleSize = size+4
+            titleSize = size+2
         elif len(self.title) < 18:
-            titleSize = size
+            titleSize = size-2
         else:
-            titleSize = size-4
-        titleFont = pygame.font.SysFont(self.font,titleSize)
+            titleSize = size-6
+        titleFont = pygame.font.Font(self.font,titleSize)
         titleFont.set_bold(True)
 
         if len(self.body) < 10:
-            bodySize = size+2
+            bodySize = size
         elif len(self.body) < 18:
-            bodySize = size-2
+            bodySize = size-4
         else:
-            bodySize = size-5
-        bodyFont = pygame.font.SysFont(self.font,bodySize)
+            bodySize = size-7
+        bodyFont = pygame.font.Font(self.font,bodySize)
         bodyFont.set_bold(True)
 
         self.titleBox = u.old_textbox(self.title,titleFont,(25,self.ypos),backgroundCol=None,textCol=colour.black,center=False)
@@ -750,6 +751,9 @@ class Game:
         self.entities = []
         self.lights = []
         self.lightEntities = []
+        self.nc_plats = [] # background, non-collide platforms
+        self.windows = []
+
         self.brightness = 255
 
         self.events = [False,False]
@@ -1265,7 +1269,6 @@ class Game:
                 mob.fix_center()
                 mob.tick()
                 mob.update_hitboxes()
-                self.graphics.draw_enemy(mob)
                 mob.update_target((self.player.xpos,self.player.ypos))
                 mob.pathfind()
             else:
@@ -1275,7 +1278,6 @@ class Game:
         for mob in self.jumpingEnemyEntities:
             if not mob.needsDel:
                 mob.fix_center()
-                self.graphics.draw_jumping_enemy(mob)
                 mob.update_target((self.player.xpos,self.player.ypos))
                 # mob.check_vision() handled in game.handle_spike_collision()
                 mob.pathfind()
@@ -1293,7 +1295,6 @@ class Game:
                 bToDel.append(mob)
             mob.fix_center()
             mob.update_hitbox()
-            self.graphics.draw_boss(mob)
             mob.tick_projectiles()
             mob.update_target((self.player.xpos, self.player.ypos))
 
@@ -1342,6 +1343,14 @@ class Game:
             self.stats.enemiesKilled += 1
             self.stats.bossesKilled += 1
             self.bossEntities.remove(mob)
+
+    def draw_enemies(self):
+        for mob in self.enemyEntities:
+            self.graphics.draw_enemy(mob)
+        for mob in self.jumpingEnemyEntities:
+            self.graphics.draw_jumping_enemy(mob)
+        for mob in self.bossEntities:
+            self.graphics.draw_boss(mob)
 
     def tick_player(self):
 ##        self.player.wallData = self.player.check()
@@ -1798,6 +1807,8 @@ class Game:
         self.electricStates = []
         self.lights = []
         self.lightEntities = []
+        self.nc_plats = []
+        self.windows = []
 
         self.spawnPoint = []
 
@@ -1805,52 +1816,57 @@ class Game:
         self.events = [False,False]
         # for all enemies defeated and bosses defeated
 
-        try: # correct outdated levels
-            if "start" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["start"] = [0,0]
-            if "end" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["end"] = [300,0]
-            if "platforms" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["platforms"] = [[-100,50,500,50]]
-            if "spikes" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["spikes"] = []
-            if "fan bases" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["fan bases"] = []
-            if "fan columns" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["fan columns"] = []
-            if "stars" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["stars"] = []
-            if "mobs" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["mobs"] = []
-            if "resist types" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["resist types"] = []
-            if "jumping mobs" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["jumping mobs"] = []
-            if "checkpoints" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["checkpoints"] = []
-            if "bosses" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["bosses"] = []
-            if "buttons" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["buttons"] = []
-            if "disappearing platforms" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["disappearing platforms"] = []
-            if "disappearing platform links" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["disappearing platform links"] = []
-            if "appearing platforms" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["appearing platforms"] = []
-            if "appearing platform links" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["appearing platform links"] = []
-            if "bombs" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["bombs"] = []
-            if "ice" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["ice"] = []
-            if "electric" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["electric"] = []
-            if "saws" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["saws"] = []
-            if "lights" not in self.data[str(self.levelIDX)]:
-                self.data[str(self.levelIDX)]["lights"] = []
+        level = self.data[str(self.levelIDX)]
 
+        try: # correct outdated levels
+            if "start" not in level:
+                level["start"] = [0, 0]
+            if "end" not in level:
+                level["end"] = [300, 0]
+            if "platforms" not in level:
+                level["platforms"] = [[-100, 50, 500, 50]]
+            if "spikes" not in level:
+                level["spikes"] = []
+            if "fan bases" not in level:
+                level["fan bases"] = []
+            if "fan columns" not in level:
+                level["fan columns"] = []
+            if "stars" not in level:
+                level["stars"] = []
+            if "mobs" not in level:
+                level["mobs"] = []
+            if "resist types" not in level:
+                level["resist types"] = []
+            if "jumping mobs" not in level:
+                level["jumping mobs"] = []
+            if "checkpoints" not in level:
+                level["checkpoints"] = []
+            if "bosses" not in level:
+                level["bosses"] = []
+            if "buttons" not in level:
+                level["buttons"] = []
+            if "disappearing platforms" not in level:
+                level["disappearing platforms"] = []
+            if "disappearing platform links" not in level:
+                level["disappearing platform links"] = []
+            if "appearing platforms" not in level:
+                level["appearing platforms"] = []
+            if "appearing platform links" not in level:
+                level["appearing platform links"] = []
+            if "bombs" not in level:
+                level["bombs"] = []
+            if "ice" not in level:
+                level["ice"] = []
+            if "electric" not in level:
+                level["electric"] = []
+            if "saws" not in level:
+                level["saws"] = []
+            if "lights" not in level:
+                level["lights"] = []
+            if "background" not in level:
+                level["background"] = []
+            if "windows" not in level:
+                level["windows"] = []
         except KeyError: # should only happen if missing the entire level number
             self.data[str(self.levelIDX)] = {
                 "start":[0,0],
@@ -1876,8 +1892,6 @@ class Game:
                 "saws":[],
                 "lights":[],
             }
-
-        level = self.data[str(self.levelIDX)]
 
         if "brightness" in level:
             self.brightness = level["brightness"]
@@ -1951,6 +1965,10 @@ class Game:
         for item in level["lights"]:
             self.lights.append(item)
             self.lightEntities.append(Light(SCREEN,item[0],item[1],150,depth=150))
+        for item in level["background"]:
+            self.nc_plats.append(item)
+        for item in level["windows"]:
+            self.windows.append(item)
 
         self.orient_spikes()
         self.orient_electric()
@@ -1972,6 +1990,11 @@ class Game:
             if self.misc.sawState > 1:
                 self.misc.sawState = 0
             self.misc.lastSawChange = now()
+
+        for item in self.nc_plats:
+            sendPlatformToCam(item,self.settings.highResTextures,platType="background")
+        for item in self.windows:
+            blitToCam(self.img.image["window"],item)
 
         blitToCam(self.img.image["finish"], self.data[str(self.levelIDX)]["end"])  # VERY INEFFICIENT FIX ME
         for item in self.platforms:
@@ -2130,7 +2153,11 @@ class Game:
         SCREEN.blit(self.img.image["electric"][0],(10,965+scr))
         # electric
         SCREEN.blit(self.img.image["light"], (10, 1025 + scr))
-        # electric
+        # light
+        SCREEN.blit(self.img.image["dark_rock"], (10, 1085 + scr))
+        # dark rock
+        SCREEN.blit(self.img.image["window"], (10, 1145 + scr))
+        # window
 
     def check_selected(self):
         mouseRect = toRect(self.editor.mouseRect)
@@ -2206,7 +2233,9 @@ class Game:
                     self.data[str(self.levelIDX)]["appearing platform links"] = self.appearingPlatformLinks
 
     def run_level_builder(self):
-        if self.editor.selected in ["platform", "disappearing platform", "appearing platform", "ice"]:
+        if (self.editor.selected in
+                ["platform", "disappearing platform", "appearing platform",
+                 "ice","background"]):
             if self.editor.clicks == [True, False]:
                 # add start coords
                 realx, realy = pygame.mouse.get_pos()
@@ -2240,6 +2269,8 @@ class Game:
                         self.data[str(self.levelIDX)]["appearing platform links"].append(-1)
                     elif self.editor.selected == "ice":
                         self.data[str(self.levelIDX)]["ice"].append(self.editor.pendingRect)
+                    elif self.editor.selected == "background":
+                        self.data[str(self.levelIDX)]["background"].append(self.editor.pendingRect)
 
                 self.editor.pendingRect = [0, 0, 0, 0]
                 self.update_level(next=False)
@@ -2258,6 +2289,8 @@ class Game:
                     infoList = self.appearingPlatformLinks
                 elif self.editor.selected == "ice":
                     which = "ice"
+                elif self.editor.selected == "background":
+                    which = "background"
 
                 for item in self.data[str(self.levelIDX)][which]:
                     if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect(item)):
@@ -2315,6 +2348,9 @@ class Game:
                 elif self.editor.selected == "electric":
                     self.data[str(self.levelIDX)]["electric"].append(truncPos)
 
+                elif self.editor.selected == "window":
+                    self.data[str(self.levelIDX)]["windows"].append(truncPos)
+
                 elif self.editor.selected == "light":
                     self.data[str(self.levelIDX)]["lights"].append(truncPos)
                     #self.lightEntities.append(
@@ -2324,23 +2360,23 @@ class Game:
                 self.update_level(next=False)
 
             if self.editor.clicksR == [True, False]:  # RMB
-                for item in self.spikes:
+                for item in self.spikes.copy():
                     orn = self.spikeDir[self.spikes.index(item)]
                     if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), spike_convert(item, orn)):
                         self.data[str(self.levelIDX)]["spikes"].remove(item)
                         self.orient_spikes()
 
-                for item in self.fanBases:
+                for item in self.fanBases.copy():
                     if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
                         self.data[str(self.levelIDX)]["fan bases"].remove(item)
                         self.fanBases.remove(item)
 
-                for item in self.fanColumns:
+                for item in self.fanColumns.copy():
                     if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
                         self.data[str(self.levelIDX)]["fan columns"].remove(item)
                         self.fanColumns.remove(item)
 
-                for item in self.stars:
+                for item in self.stars.copy():
                     if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
                         self.data[str(self.levelIDX)]["stars"].remove(item)
                         self.stars.remove(item)
@@ -2353,36 +2389,36 @@ class Game:
                         self.data[str(self.levelIDX)]["resist types"].pop(i)
                         break
 
-                for item in self.jumpingEnemies:
+                for item in self.jumpingEnemies.copy():
                     if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
                         self.data[str(self.levelIDX)]["jumping mobs"].remove(item)
                         self.jumpingEnemies.remove(item)
 
-                for item in self.checkpoints:
+                for item in self.checkpoints.copy():
                     if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
                         self.data[str(self.levelIDX)]["checkpoints"].remove(item)
                         self.checkpoints.remove(item)
 
-                for item in self.bosses:
+                for item in self.bosses.copy():
                     if pygame.Rect.colliderect(toRect(self.editor.newMouseRect),
                                                toRect([item[0] - 50, item[1] - 50, 50, 50])):
                         self.data[str(self.levelIDX)]["bosses"].remove([item[0] - 50, item[1] - 50])
                         self.bosses.remove(item)
 
-                for item in self.buttons:
+                for item in self.buttons.copy():
                     if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
                         self.data[str(self.levelIDX)]["buttons"].remove(item)
                         self.buttons.remove(item)
 
-                for item in self.bombs:
+                for item in self.bombs.copy():
                     if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
                         self.data[str(self.levelIDX)]["bombs"].remove(item)
 
-                for item in self.saws:
+                for item in self.saws.copy():
                     if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
                         self.data[str(self.levelIDX)]["saws"].remove(item)
 
-                for item in self.electric:
+                for item in self.electric.copy():
                     if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
                         self.data[str(self.levelIDX)]["electric"].remove(item)
 
@@ -2390,6 +2426,14 @@ class Game:
                     if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect(self.lights[i])):
                         self.data[str(self.levelIDX)]["lights"].remove(self.lights[i])
                         #self.lightEntities.pop(i)
+
+                for item in self.nc_plats.copy():
+                    if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
+                        self.data[str(self.levelIDX)]["background"].remove(item)
+
+                for item in self.windows.copy():
+                    if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
+                        self.data[str(self.levelIDX)]["windows"].remove(item)
 
                 self.update_level(next=False)
 
@@ -2481,7 +2525,8 @@ class Editor:
         self.ref = ["platform","spike","end","fan base",
                     "fan column","star","enemy", "jumping enemy",
                     "checkpoint","boss","button","disappearing platform",
-                    "appearing platform","bomb","ice","saw","electric","light"]
+                    "appearing platform","bomb","ice","saw","electric","light",
+                    "background","window"]
         self.resistTypes = ["none","spike","bomb","electric","saw"]
 
         for i in range(50):
@@ -3728,6 +3773,8 @@ def sendPlatformToCam(item,isHighRes,col=None,platType="normal"):
             image = img.image["appearing_rock"]
         elif platType == "ice":
             image = img.image["ice"]
+        elif platType == "background":
+            image = img.image["dark_rock"]
         else:
             image = img.image["rock"]
 
@@ -4211,9 +4258,11 @@ while True:
             game.scene = "ingame"
 
     elif game.scene == "menu":
+        game.draw_gradient()
         game.camerashake.val = 0
 
     elif game.scene == "control":
+        game.draw_gradient()
         if keyboardBox.isPressed():
             game.settings.controls = "keyboard"
         if touchscreenBox.isPressed():
@@ -4226,7 +4275,6 @@ while True:
 
     elif game.scene == "ingame":
         check_story()
-        game.graphics.set_camera(game.player)
         game.camerashake.tick()
         game.draw_gradient()
         game.generate_cloud()
@@ -4250,13 +4298,14 @@ while True:
             #game.trigger_death(die=False)
         levelIDXBox.update_message("Level " + str(game.levelIDX))
 
+        game.graphics.set_camera(game.player)
         game.draw_bg()
         if game.enableMovement:
             game.graphics.draw_player(game.player)
             if game.player.hat != -1:
                 hat = game.img.image["hats"][game.player.hat]
-                SCREEN.blit(hat,
-                            ((SCRW - hat.get_width()) // 2, ((SCRH - hat.get_height()) // 2) - game.player.height + 6))
+                SCREEN.blit(hat,((SCRW - hat.get_width()) // 2, ((SCRH - hat.get_height()) // 2) - game.player.height + 6))
+        game.draw_enemies()
         game.draw_animations()
         game.draw_lighting()
 #        sendToCam(list(game.player.hitbox.bottom),"hitbox",col=colour.white)
@@ -4303,6 +4352,7 @@ while True:
         game.draw_editor_menu()
 
     elif game.scene == "levels":
+        game.draw_gradient()
         levelSlots.tick()
         levelSlots.check()
         if levelSlots.pressed:
@@ -4314,6 +4364,7 @@ while True:
             game.chaos.reset()
 
     elif game.scene == "settings":
+        game.draw_gradient()
         #collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox
         starCount = 0
         for key in game.stats.stars:
@@ -4351,10 +4402,12 @@ while True:
             SCREEN.blit(img.image["tick"],(showTimerBox.pos[0]+showTimerBox.textRect[2]/2,showTimerBox.pos[1]-th))
 
     elif game.scene == "achievements":
+        game.draw_gradient()
         game.achievements.update_slots()
         game.achievements.show()
 
     elif game.scene == "customise":
+        game.draw_gradient()
         for slider in [redSlider,greenSlider,blueSlider]:
             slider.get_presses()
             slider.draw()
