@@ -1665,10 +1665,6 @@ class Game:
                     self.stats.stars[str(self.levelIDX)].append(item)
                     self.animations.append(Star_Particle(item[0], item[1], colour.yellow))
 
-        for item in self.bombEntities:
-            item.tick()
-            item.update_hitbox()
-
         fan = False
         for item in self.fanColumns:
             newItem = [item[0], item[1], 50, 50]
@@ -1701,6 +1697,11 @@ class Game:
 
             if True in press:
                 self.buttonPresses[self.buttons.index(item)] = True
+
+    def handle_bomb_entities(self):
+        for item in self.bombEntities:
+            item.tick()
+            item.update_hitbox()
 
     def tick(self):
         self.entities = [self.bossEntities,
@@ -4298,7 +4299,9 @@ while True:
             #game.trigger_death(die=False)
         levelIDXBox.update_message("Level " + str(game.levelIDX))
 
+
         game.graphics.set_camera(game.player)
+        game.handle_bomb_entities()
         game.draw_bg()
         if game.enableMovement:
             game.graphics.draw_player(game.player)
