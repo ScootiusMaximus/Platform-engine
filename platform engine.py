@@ -70,6 +70,7 @@ class Images:
         "link" : pygame.image.load("link.png"),
         "enemy_type":pygame.image.load("enemy_type.png"),
         "build":pygame.image.load("build.png"),
+        "belt_director":pygame.image.load("belt_selector.png"),
         "rock" : pygame.image.load("rock.png"),
         "dark_rock" : pygame.image.load("dark_rock.png"),
         "disappearing_rock" : pygame.image.load("disappearing_rock.png"),
@@ -99,6 +100,21 @@ class Images:
         "zap":[pygame.image.load("zap1.png"),pygame.image.load("zap2.png")],
         "story2":pygame.image.load("story2.png"),
         "light":pygame.image.load("light.png"),
+        "belt_cw":[pygame.image.load("belt_cw_1.png"),
+                    pygame.image.load("belt_cw_2.png"),],
+        "belt_ccw": [pygame.image.load("belt_ccw_1.png"),
+                    pygame.image.load("belt_ccw_2.png"),],
+        "belt_cw_right_end": [pygame.image.load("belt_cw_right_end_1.png"),
+                    pygame.image.load("belt_cw_right_end_2.png"), ],
+        "belt_ccw_right_end": [pygame.image.load("belt_ccw_right_end_1.png"),
+                    pygame.image.load("belt_ccw_right_end_2.png"), ],
+        "belt_cw_left_end": [pygame.image.load("belt_cw_left_end_1.png"),
+                    pygame.image.load("belt_cw_left_end_2.png"), ],
+        "belt_ccw_left_end": [pygame.image.load("belt_ccw_left_end_1.png"),
+                    pygame.image.load("belt_ccw_left_end_2.png"), ],
+        "arrows":[pygame.image.load("arrow_left.png"),
+                  pygame.image.load("arrow_null.png"),
+                  pygame.image.load("arrow_right.png"),]
         }
         for i in range(10):
             name = f"code{i+1}.png"
@@ -402,6 +418,11 @@ class MiscData:
         self.lastSawChange = 0
         self.sawInterval = 50
         self.sawState = 0
+
+        self.beltState = 0
+        self.beltInterval = 100
+        self.lastBeltChange = 0
+        self.beltSpeed = 4
 
         self.lastFPSUpdate = 0
         self.FPSUpdateInterval = 200
@@ -753,6 +774,9 @@ class Game:
         self.lightEntities = []
         self.nc_plats = [] # background, non-collide platforms
         self.windows = []
+        self.belts = []
+        self.beltStates = []
+        self.beltDirections = []
 
         self.brightness = 255
 
@@ -770,7 +794,7 @@ class Game:
         self.load_cache()
         self.fix_stats_stars()
         self.achievements.update_slots()
-        self.save_asthetics(self.player.colour)
+        self.save_aesthetics(self.player.colour)
         self.joystick.resize(SCRW, SCRH)
 
         self.scene = "menu" if self.misc.hasinit else "init"
@@ -942,6 +966,31 @@ class Game:
         self.electricHitboxes = []
         for i in range(len(self.electric)):
             self.electricHitboxes.append(get_electric_hitbox(self.electric[i],self.electricStates[i]))
+
+    def orient_belts(self):
+        self.beltStates = []
+        for item in self.belts:
+            right = False
+            left = False
+            appearance = 0
+            points = [pygame.Rect(item[0] + 50, item[1], 10, 10),
+                      pygame.Rect(item[0] - 50, item[1], 10, 10)]
+
+            for other in self.belts:
+                if other is not item:
+                    if pygame.Rect.colliderect(points[0],toRect(other)):
+                        right = True
+                    if pygame.Rect.colliderect(points[1],toRect(other)):
+                        left = True
+
+            if left:
+                appearance = -1
+            if right:
+                appearance = 1
+            if left and right:
+                appearance = 0
+
+            self.beltStates.append(appearance)
 
     def start_chaos(self,what):
         if what == "spawn enemies":
@@ -1570,6 +1619,30 @@ class Game:
                             mob.hitbox.collideWhole = plat
                             mob.floorMaterial = "appearing platform"
 
+        for i in range(len(self.belts)):
+            compItem = toRect(get_actual_pos([self.belts[i][0],self.belts[i][1],50,50]))
+            for which in self.entities:
+                for mob in which:
+                    if collide(mob.hitbox.actBottom, compItem):
+                        mob.wallData[0] = True
+                        mob.hitbox.collideBottom = [self.belts[i][0],self.belts[i][1],50,50]
+                        mob.floorMaterial = "belt"
+                        mob.xpos += self.misc.beltSpeed * self.beltDirections[i]
+                    if collide(mob.hitbox.actLeft, compItem):
+                        mob.wallData[1] = True
+                        mob.hitbox.collideLeft = [self.belts[i][0],self.belts[i][1],50,50]
+                    if collide(mob.hitbox.actRight, compItem):
+                        mob.wallData[2] = True
+                        mob.hitbox.collideRight = [self.belts[i][0],self.belts[i][1],50,50]
+                    if collide(mob.hitbox.actTop, compItem):
+                        mob.wallData[3] = True
+                        mob.hitbox.collideTop = [self.belts[i][0],self.belts[i][1],50,50]
+                    if collide(mob.hitbox.actWhole, compItem):
+                        mob.wallData[4] = True
+                        mob.hitbox.collideWhole = [self.belts[i][0],self.belts[i][1],50,50]
+                        mob.floorMaterial = "belt"
+
+
         if True in self.player.wallData:
             self.sound.end_fall()
 
@@ -1810,6 +1883,9 @@ class Game:
         self.lightEntities = []
         self.nc_plats = []
         self.windows = []
+        self.belts = []
+        self.beltStates = []
+        self.beltDirections = []
 
         self.spawnPoint = []
 
@@ -1868,6 +1944,10 @@ class Game:
                 level["background"] = []
             if "windows" not in level:
                 level["windows"] = []
+            if "belts" not in level:
+                level["belts"] = []
+            if "belt dir" not in level:
+                level["belt dir"] = []
         except KeyError: # should only happen if missing the entire level number
             self.data[str(self.levelIDX)] = {
                 "start":[0,0],
@@ -1892,6 +1972,8 @@ class Game:
                 "electric":[],
                 "saws":[],
                 "lights":[],
+                "belts":[],
+                "belt dir":[],
             }
 
         if "brightness" in level:
@@ -1970,9 +2052,14 @@ class Game:
             self.nc_plats.append(item)
         for item in level["windows"]:
             self.windows.append(item)
+        for item in level["belts"]:
+            self.belts.append(item)
+        for item in level["belt dir"]:
+            self.beltDirections.append(item)
 
         self.orient_spikes()
         self.orient_electric()
+        self.orient_belts()
         self.make_button_boxes()
 
     def draw_bg(self):
@@ -1991,6 +2078,11 @@ class Game:
             if self.misc.sawState > 1:
                 self.misc.sawState = 0
             self.misc.lastSawChange = now()
+        if now() - self.misc.lastBeltChange > self.misc.beltInterval:
+            self.misc.beltState += 1
+            if self.misc.beltState > 1:
+                self.misc.beltState = 0
+            self.misc.lastBeltChange = now()
 
         for item in self.nc_plats:
             sendPlatformToCam(item,self.settings.highResTextures,platType="background")
@@ -2027,6 +2119,9 @@ class Game:
             blitToCam(self.img.image["saw"][self.misc.sawState], item)
         for i in range(len(self.electric)):
             sendElectricToCam(self.electric[i],self.misc.electricState,self.electricStates[i])
+        for i in range(len(self.belts)):
+            sendBeltToCam(self.belts[i],self.beltDirections[i],self.beltStates[i],self.misc.beltState)
+            #sendBeltToCam(self.belts[i],0,self.beltStates[i],self.misc.beltState)
 
         if self.scene == "ingame":
             for item in self.buttons:
@@ -2114,11 +2209,13 @@ class Game:
             pygame.draw.rect(SCREEN,(180,180,180),drawPos)
 
         SCREEN.blit(self.img.image["build"],(SCRW - 100, SCRH - 100))
-        # link image
+        # build image
         SCREEN.blit(self.img.image["link"],(SCRW - 100, SCRH - 200))
         # link image
         SCREEN.blit(self.img.image["enemy_type"], (SCRW - 100, SCRH - 300))
         # enemy type image
+        SCREEN.blit(self.img.image["belt_director"], (SCRW - 100, SCRH - 400))
+        # belt director image
         pygame.draw.rect(SCREEN,colour.darkgrey,(10,30+scr,50,10))
         # platform icon
         pygame.draw.polygon(SCREEN,colour.red,((30,110+scr),(40,110+scr),(35,80+scr)))
@@ -2158,6 +2255,8 @@ class Game:
         SCREEN.blit(self.img.image["dark_rock"], (10, 1085 + scr))
         # dark rock
         SCREEN.blit(self.img.image["window"], (10, 1145 + scr))
+        # window
+        SCREEN.blit(self.img.image["belt_cw"][0], (10, 1205 + scr))
         # window
 
     def check_selected(self):
@@ -2208,6 +2307,10 @@ class Game:
         if self.editor.enemyTypeRect.pressed():
             self.editor.mode = "enemy type"
             self.editor.selected = "Hover over highlighted enemy to change type"
+
+        if self.editor.beltDirectorRect.pressed():
+            self.editor.mode = "belt director"
+            self.editor.selected = "Hover over highlighted belt to change direction"
 
     def run_link_mode(self):
         self.run_button_boxes()
@@ -2354,9 +2457,10 @@ class Game:
 
                 elif self.editor.selected == "light":
                     self.data[str(self.levelIDX)]["lights"].append(truncPos)
-                    #self.lightEntities.append(
-                    #    Light(SCREEN, truncPos[0], truncPos[1], 100, depth=20, img=self.img.image["light"]))
-                    #print("he")
+
+                elif self.editor.selected == "belt":
+                    self.data[str(self.levelIDX)]["belts"].append(truncPos)
+                    self.data[str(self.levelIDX)]["belt dir"].append(0)
 
                 self.update_level(next=False)
 
@@ -2436,6 +2540,11 @@ class Game:
                     if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([item[0], item[1], 50, 50])):
                         self.data[str(self.levelIDX)]["windows"].remove(item)
 
+                for i in range(len(self.belts)):
+                    if pygame.Rect.colliderect(toRect(self.editor.newMouseRect), toRect([self.belts[i][0], self.belts[i][1], 50, 50])):
+                        self.data[str(self.levelIDX)]["belts"].pop(i)
+                        self.data[str(self.levelIDX)]["belt dir"].pop(i)
+
                 self.update_level(next=False)
 
     def run_enemy_type_editor(self):
@@ -2450,6 +2559,17 @@ class Game:
                 level["resist types"][i] = self.editor.resistTypes[idx]
                 self.editor.selected = f"Enemy type: {level['resist types'][i].capitalize()}"
 
+    def run_belt_editor(self):
+        level = self.data[str(self.levelIDX)]
+        for i in range(len(self.belts)):
+            beltRect = [self.belts[i][0],self.belts[i][1],50,50]
+            blitToCam(self.img.image["arrows"][level["belt dir"][i]+1],beltRect)
+            sendToCam(beltRect,col=colour.white,name="hitbox")
+            if pygame.Rect.colliderect(toRect(beltRect), self.editor.newMouseRect):
+                idx = self.editor.relativeScroll + level["belt dir"][i]
+                idx = bind(-1,idx,1)
+                level["belt dir"][i] = idx
+
     def run_editor(self):
         self.handle_misc_editor_events()
 
@@ -2459,6 +2579,8 @@ class Game:
             self.run_enemy_type_editor()
         elif self.editor.mode == "level builder":
             self.run_level_builder()
+        elif self.editor.mode == "belt director":
+            self.run_belt_editor()
 
     def run_button_boxes(self):
         for box in self.editor.buttonIndexBoxes:
@@ -2487,7 +2609,7 @@ class Game:
     def get_dist(self,pos1,pos2):
         return math.sqrt((pos1[0]-pos2[0])**2+(pos1[1]-pos2[1])**2)
 
-    def save_asthetics(self,col,hatIDX=-1):
+    def save_aesthetics(self, col):
         #self.player.hat = hatIDX
         self.player.colour = col
         if self.player.img is not None:
@@ -2520,6 +2642,7 @@ class Editor:
         self.buildRect = u.Pressable(SCRW-100,SCRH-100,70,70)
         self.linkRect = u.Pressable(SCRW-100,SCRH-200,70,70)
         self.enemyTypeRect = u.Pressable(SCRW-100,SCRH-300,70,70)
+        self.beltDirectorRect = u.Pressable(SCRW-100,SCRH-400,70,70)
 
         self.originalItemRects = []
         self.itemRects = []
@@ -2527,10 +2650,10 @@ class Editor:
                     "fan column","star","enemy", "jumping enemy",
                     "checkpoint","boss","button","disappearing platform",
                     "appearing platform","bomb","ice","saw","electric","light",
-                    "background","window"]
+                    "background","window","belt"]
         self.resistTypes = ["none","spike","bomb","electric","saw"]
 
-        for i in range(50):
+        for i in range(len(self.ref)):
             y = i*60
             self.originalItemRects.append((10,y+5,50,50))
             self.itemRects.append((10, y + 5, 50, 50))
@@ -2981,8 +3104,14 @@ class Bomb(Physics_Object):
     def update_hitbox(self):
         self.hitbox.whole = [self.xpos+5,self.ypos+5,40,40]
         self.hitbox.actWhole = toRect(get_actual_pos(self.hitbox.whole))
-        self.hitbox.bottom = [self.xpos+10,self.ypos+40,30,10]
+        self.hitbox.bottom = [self.xpos+5,self.ypos+40,40,10]
         self.hitbox.actBottom = toRect(get_actual_pos(self.hitbox.bottom))
+
+        #self.hitbox.left = [self.xpos,self.ypos,5,40]
+        #self.hitbox.actLeft = toRect(get_actual_pos(self.hitbox.left))
+        #self.hitbox.right = [self.xpos+30,self.ypos,5,40]
+        #self.hitbox.actRight = toRect(get_actual_pos(self.hitbox.right))
+
         #sendToCam(self.hitbox.whole,"hitbox")
         #sendToCam(self.hitbox.bottom,"hitbox")
 
@@ -3463,22 +3592,36 @@ class Bomb_Particle(Animation):
         super().__init__(xpos,ypos)
         self.interval = 50
         self.name = "bomb"
+        self.light = None
+        self.center = get_actual_pos((self.xpos+25,self.ypos+25))[:2]
+        self.make_light(0, (0, 0, 0))
+
+    def make_light(self,radius,col,depth=100):
+        self.light = Light(SCREEN,self.center[0],self.center[1],radius*5,col,depth)
 
     def draw(self):
-        center = get_screen_pos((self.xpos+25,self.ypos+25))[:2]
+        self.center = get_actual_pos((self.xpos + 25, self.ypos + 25))[:2]
+        self.center = (self.xpos + 25, self.ypos + 25)
         if self.frame == 1:
-            pygame.draw.circle(SCREEN,(255, 255, 255),center,10)
+            #pygame.draw.circle(SCREEN,(255, 255, 255),self.center,10)
+            self.make_light(10,(255,255,255))
         elif self.frame == 2:
-            pygame.draw.circle(SCREEN, (255, 255, 150), center, 20)
+            #pygame.draw.circle(SCREEN, (255, 255, 150), self.center, 20)
+            self.make_light(20, (255, 255, 150))
         elif self.frame == 3:
-            pygame.draw.circle(SCREEN, (255, 255, 50), center, 25)
+            #pygame.draw.circle(SCREEN, (255, 255, 50), self.center, 25)
+            self.make_light(25, (255, 255, 50))
         elif self.frame == 4:
-            pygame.draw.circle(SCREEN, (255, 255, 0), center, 30)
+            #pygame.draw.circle(SCREEN, (255, 255, 0), self.center, 30)
+            self.make_light(30, (255, 255, 0))
         elif self.frame == 5:
-            pygame.draw.circle(SCREEN, (255, 175, 0), center, 32)
+            #pygame.draw.circle(SCREEN, (255, 175, 0), self.center, 32)
+            self.make_light(32, (255, 175, 0))
         elif self.frame == 6:
-            pygame.draw.circle(SCREEN, (255, 0, 0), center, 35)
+            #pygame.draw.circle(SCREEN, (255, 0, 0), self.center, 35)
+            self.make_light(35, (255, 0, 0))
 
+        self.light.draw()
         if self.frame > 6:
             self.finished = True
 
@@ -3784,6 +3927,18 @@ def sendPlatformToCam(item,isHighRes,col=None,platType="normal"):
                 blitToCam(image,(item[0]+(x*50),item[1]+(y*50)))
     else:
         sendToCam(item,col=col)
+
+def sendBeltToCam(item,direction,appearance,frame):
+    d = "ccw" if direction == "left" else "cw"
+    if appearance == 1:
+        a = "_left_end"
+    elif appearance == -1:
+        a = "_right_end"
+    else:
+        a = ""
+
+    image = img.image[f"belt_{d}{a}"][frame]
+    blitToCam(image,item)
 
 def sendToCam(item,name=None,col=None):
     newRect = [item[0]-game.player.xpos+(SCRW//2),
@@ -4126,7 +4281,7 @@ def esc_pressed():
         game.save()
         game.update_level(next=False)
     if game.scene == "customise":
-        game.save_asthetics((redSlider.get() * 255, greenSlider.get() * 255, blueSlider.get() * 255))
+        game.save_aesthetics((redSlider.get() * 255, greenSlider.get() * 255, blueSlider.get() * 255))
     if game.scene not in ["control", "init"]:
         game.scene = "menu"
         game.reset_player()
