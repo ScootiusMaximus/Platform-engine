@@ -1757,8 +1757,8 @@ class Game:
             self.sound.end_fan()
 
         end = self.data[str(self.levelIDX)]["end"]
-        if pygame.Rect.colliderect(self.player.hitbox.actWhole,
-                                   toRect(get_actual_pos([end[0], end[1], 50, 50]))):
+        if pygame.Rect.colliderect(self.player.hitbox.whole,
+                                   toRect([end[0], end[1], 50, 50])):
             self.player.atFinish = True
 
         for item in self.buttons:
@@ -1893,9 +1893,8 @@ class Game:
         self.events = [False,False]
         # for all enemies defeated and bosses defeated
 
-        level = self.data[str(self.levelIDX)]
-
         try: # correct outdated levels
+            level = self.data[str(self.levelIDX)]
             if "start" not in level:
                 level["start"] = [0, 0]
             if "end" not in level:
@@ -1972,9 +1971,12 @@ class Game:
                 "electric":[],
                 "saws":[],
                 "lights":[],
+                "background":[],
+                "windows":[],
                 "belts":[],
                 "belt dir":[],
             }
+            level = self.data[str(self.levelIDX)]
 
         if "brightness" in level:
             self.brightness = level["brightness"]
@@ -2892,7 +2894,8 @@ class Player(Physics_Object):
 
         for pos in [((SCRW//2)-20,(SCRH//2)+21),((SCRW//2),(SCRH//2)+21),((SCRW//2)+20,(SCRH//2)+21)]:
             if SCREEN.get_at(pos) == colour.green:
-                self.atFinish = True
+                #self.atFinish = True
+                pass
 
         return [bottom,left,right]
 
