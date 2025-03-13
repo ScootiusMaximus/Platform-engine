@@ -1,3 +1,4 @@
+import asyncio
 import colour
 from copy import deepcopy
 import json
@@ -34,7 +35,7 @@ font10 = pygame.font.Font(sour_gummy, FONTSIZE - 8)
 font12 = pygame.font.Font(sour_gummy, FONTSIZE - 4)
 font18 = pygame.font.Font(sour_gummy, FONTSIZE)
 font28 = pygame.font.Font(sour_gummy, FONTSIZE + 10)
-font50 = pygame.font.Font(sour_gummy, FONTSIZE + 32)
+font50 = pygame.font.Font(sour_gummy, FONTSIZE + 42)
 fontDramatic = pygame.font.Font(audiowide, FONTSIZE + 20)
 fontTitle = pygame.font.Font(bruno_ace,60)
 fontTitle.set_bold(True)
@@ -45,6 +46,7 @@ class Images:
         self.image = {
         "body":pygame.image.load("body.png"),
         "body_thick":pygame.image.load("body_thick.png"),
+        "body_smol":pygame.image.load("body_smol.png"),
         "enemy_body":pygame.image.load("enemy_body.png"),
         "enemy_body_thick" : pygame.image.load("enemy_body_thick.png"),
         "enemy_body_spike": pygame.image.load("enemy_body_spike.png"),
@@ -64,6 +66,7 @@ class Images:
         "tick" : pygame.transform.scale_by(pygame.image.load("tick.png"),0.2),
         "boss_img" : pygame.image.load("boss_face.png"),
         "boss_img_thick" : pygame.image.load("boss_face_thick.png"),
+        "fireball": pygame.image.load("fireball.png"),
         "boss_menu" : pygame.transform.scale_by(pygame.image.load("boss_face.png"),0.2),
         "button_unpressed" : pygame.image.load("button_unpressed.png"),
         "button_pressed" : pygame.image.load("button_pressed.png"),
@@ -431,6 +434,7 @@ class MiscData:
         self.bgCol = [(200,200,255),
                       (200,200,170)]
         self.menuCol = (200,200,250)
+        self.gradientCols = []
 
         self.hasTransition = False
         self.wasTransition = False
@@ -443,6 +447,8 @@ class MiscData:
         self.timerCount = 0
         self.timerRunning = False
         self.showTimer = False
+
+        self.helpie = Enemy(0,0,img=img.image["enemy_body"])
 
         self.hasinit = False
 
@@ -614,6 +620,15 @@ class Graphics:
             image = self.img.image["enemy_body"]
 
         blitToCam(image, (enemy.xpos - enemy.width // 2, enemy.ypos - (enemy.height // 2) + 10))
+
+        self.draw_eye(enemy)
+
+    def draw_family(self,mob):
+        #blitToCam(mob.img, (mob.xpos - mob.width // 2, mob.ypos - mob.height + 10))
+        blitToCam(mob.img, (mob.xpos - mob.width // 2, mob.ypos - (mob.height // 2) + 10))
+        self.draw_eye(mob)
+
+    def draw_eye(self,enemy):
         pygame.draw.circle(SCREEN, colour.white,((SCRW // 2) - self.camera_x + enemy.xpos, (SCRH // 2) + 5 - self.camera_y + enemy.ypos),10)
         if enemy.xvel == 0:
             pygame.draw.circle(SCREEN, colour.black, (
@@ -703,6 +718,20 @@ class Graphics:
         # sendToCam(list(self.hitbox.top),"hitbox",col=colour.white)
         # sendToCam(list(self.hitbox.whole),"hitbox",col=colour.white)
 
+    def draw_final_boss(self,enemy):
+        blitToCam(self.img.image["boss_img"], (enemy.xpos - enemy.width, enemy.ypos - enemy.height))
+        enemy.hb.draw()
+        for item in enemy.projectiles:
+            item.draw()
+
+        enemy.eyes[0].xpos = enemy.xpos - 220
+        enemy.eyes[0].ypos = enemy.ypos - 170
+        enemy.eyes[1].xpos = enemy.xpos - 100
+        enemy.eyes[1].ypos = enemy.ypos - 190
+
+        for eye in enemy.eyes:
+            eye.draw()
+
 class Game:
     def __init__(self):
         self.gravity = 0.981
@@ -777,6 +806,7 @@ class Game:
         self.belts = []
         self.beltStates = []
         self.beltDirections = []
+        self.family = []
 
         self.brightness = 255
 
@@ -1053,7 +1083,7 @@ class Game:
             for _ in range(5):
                 pos = make_position_modifier(1,3)
                 self.bombEntities.add(Bomb(self.player.xpos + pos[0],
-                                   self.player.ypos + pos[1],self.img.image["bomb"],gravity=self.gravity))
+                       self.player.ypos + pos[1],self.img.image["bomb"],gravity=self.gravity))
 
     def end_chaos(self):
         self.chaos.reset()
@@ -1130,6 +1160,24 @@ class Game:
                        colA[1]+(i*((colB[1]-colA[1])/step)),
                        colA[2]+(i*(colB[2]-colA[2])/step)]
             pygame.draw.rect(SCREEN,drawCol,(0,i*(SCRH/step),SCRW,step))
+
+    def update_gradient(self):
+        self.misc.gradientCols.clear()
+        step = 100
+        if self.chaos.actions[self.chaos.action] == "rgb":
+            colA = self.rgb.get()
+            for _ in range(20):
+                self.rgb.tick()
+            colB = self.rgb.get()
+        else:
+            colA = self.misc.bgCol[0]
+            colB = self.misc.bgCol[1]
+
+        for i in range(step):
+            drawCol = [colA[0] + (i * ((colB[0] - colA[0]) / step)),
+                       colA[1] + (i * ((colB[1] - colA[1]) / step)),
+                       colA[2] + (i * (colB[2] - colA[2]) / step)]
+            self.misc.gradientCols.append(drawCol)
 
     def trigger_death(self):
         #print("death triggered")
@@ -1318,7 +1366,8 @@ class Game:
                 mob.fix_center()
                 mob.tick()
                 mob.update_hitboxes()
-                mob.update_target((self.player.xpos,self.player.ypos))
+                if mob is not self.misc.helpie:
+                    mob.update_target((self.player.xpos,self.player.ypos))
                 mob.pathfind()
             else:
                 eToDel.append(mob)
@@ -1359,12 +1408,32 @@ class Game:
                 mob.tick()
                 mob.pathfind()
                 #print(f"Boss state: {mob.state}")
-            if mob.state == 2:
+            if mob.state == 1 and mob.name == "final" and mob.summon:
+                # choose random action
+                c = random.randint(1,2)
+                if c == 1:
+                    # summon bombs
+                    for _ in range(10):
+                        pos = make_position_modifier(0, 8)
+                        self.bombEntities.add(Bomb(mob.lastStanding[0] + pos[0],
+                                                   mob.lastStanding[1] + pos[1], self.img.image["bomb"],
+                                                   gravity=self.gravity))
+                else:
+                    for _ in range(5):
+                        posMod = make_position_modifier(0, 2)
+                        self.enemyEntities.add(Enemy(mob.lastStanding[0] + posMod[0],
+                                                     mob.lastStanding[1] + posMod[1],
+                                                     img=self.img.image["enemy_body"]))
+                mob.summon = False
+            elif mob.state == 2:
                 self.animations.append(Charge_Up(mob.xpos-(mob.width//2), mob.ypos - (mob.height+100)))
             elif mob.state == 3 and mob.firing:
                 mob.make_projectile()
                 self.sound.boss_fire()
                 self.camerashake.add(5)
+                if mob.name == "final":
+                    for _ in range(2):
+                        self.animations.append(Charge_Up(mob.lastStanding[0],mob.lastStanding[1]))
 
             for item in mob.projectiles:
                 item.target = mob.target
@@ -1376,6 +1445,13 @@ class Game:
                 for plat in self.platforms:
                     if pygame.Rect.colliderect(toRect(plat),toRect([item.xpos,item.ypos,30,30])):
                         item.needsDel = True
+
+        for mob in self.family:
+            mob.fix_center()
+            mob.tick()
+            mob.update_hitboxes()
+            mob.update_target((self.player.xpos, self.player.ypos))
+            mob.pathfind()
 
         if len(eToDel) != 0 or len(bToDel) != 0:
             self.sound.start_death()
@@ -1399,7 +1475,15 @@ class Game:
         for mob in self.jumpingEnemyEntities:
             self.graphics.draw_jumping_enemy(mob)
         for mob in self.bossEntities:
-            self.graphics.draw_boss(mob)
+            if mob.name != "final":
+                self.graphics.draw_boss(mob)
+            else:
+                self.graphics.draw_final_boss(mob)
+                for item in mob.projectiles:
+                    item.draw()
+                mob.draw_misc()
+        for mob in self.family:
+            self.graphics.draw_family(mob)
 
     def tick_player(self):
 ##        self.player.wallData = self.player.check()
@@ -1521,6 +1605,9 @@ class Game:
             mob.wallData = [False, False, False, False, False]
             mob.hitbox.clear()
         for mob in self.jumpingEnemyEntities:
+            mob.wallData = [False, False, False, False, False]
+            mob.hitbox.clear()
+        for mob in self.family:
             mob.wallData = [False, False, False, False, False]
             mob.hitbox.clear()
 
@@ -1781,7 +1868,8 @@ class Game:
                          self.enemyEntities,
                          self.jumpingEnemyEntities,
                          self.bombEntities,
-                         {self.player}]
+                         {self.player},
+                         self.family]
         self.player.deathCause = None
         self.tick_bombs()
         #self.handle_scene()
@@ -1847,6 +1935,12 @@ class Game:
                 enemy.ypos = enemy.hitbox.collideBottom[1] +1
                 if enemy.lastYvel != 0:
                     self.animations.append(Impact_Particle(enemy.xpos,enemy.ypos+10,colour.darkgrey))
+
+        for mob in self.family:
+            if mob.wallData[0]:# and enemy.yvel == 0:
+                mob.ypos = mob.hitbox.collideBottom[1] - mob.height//2 - 10
+                if mob.lastYvel != 0:
+                    self.animations.append(Impact_Particle(mob.xpos,mob.ypos+10,colour.darkgrey))
 
         #print(f"player ypos: {self.player.ypos}, yvel: {self.player.yvel}")
 
@@ -2011,7 +2105,10 @@ class Game:
             self.checkpoints.append([item[0],item[1]])
         for item in level["bosses"]:
             self.bosses.append([item[0]+50,item[1]+50])
-            if self.levelIDX >= 20:
+            if self.levelIDX >= 30:
+                health = 2000 if not self.settings.annoyingBosses else 20000
+                self.bossEntities.add(Final_Boss(item[0]+50,item[1]+50,imgs=[self.img.image["boss_img"],self.img.image["fireball"]],health=health))
+            elif self.levelIDX >= 20:
                 health = 800 if not self.settings.annoyingBosses else 8000
                 self.bossEntities.add(Fireball_Boss(item[0]+50,item[1]+50,img=self.img.image["boss_img"],health=health))
             else:
@@ -2059,6 +2156,8 @@ class Game:
         for item in level["belt dir"]:
             self.beltDirections.append(item)
 
+
+        self.check_story_update()
         self.orient_spikes()
         self.orient_electric()
         self.orient_belts()
@@ -2611,18 +2710,40 @@ class Game:
     def get_dist(self,pos1,pos2):
         return math.sqrt((pos1[0]-pos2[0])**2+(pos1[1]-pos2[1])**2)
 
+    def run_story_events(self):
+        if self.levelIDX == 30:
+            if len(self.bossEntities) == 0:
+                self.misc.helpie.update_target((8950, -2300))
+            else:
+                self.misc.helpie.update_target((8600, -2300))
+
+    def check_story_update(self):
+        if self.levelIDX == 30:
+            self.misc.helpie = Enemy(8759,-2350,maxXvel=self.misc.beltSpeed,img=self.img.image["enemy_body"])
+            self.enemyEntities.add(self.misc.helpie)
+
+            self.family = []
+            bod = self.img.image["body"].copy()
+            bod = self.flood_fill(bod,(0,141,201))
+            self.family.append(Family(7000,-2200,10,30,bod,1))
+            self.family.append(Family(7400,-2200,8,30,self.img.image["body_smol"],2))
+
+    def flood_fill(self,surf,col):
+        surf.lock()
+        oldCol = surf.get_at((20, 20))
+        for x in range(surf.get_width()):
+            for y in range(surf.get_height()):
+                if surf.get_at((x, y)) == oldCol:
+                    surf.set_at((x, y), col)
+        surf.unlock()
+        return surf
+
     def save_aesthetics(self, col):
         #self.player.hat = hatIDX
         self.player.colour = col
         if self.player.img is not None:
             for which in [self.player.img,self.img.image["body"],self.img.image["body_thick"]]:
-                which.lock()
-                oldCol = which.get_at((20,20))
-                for x in range(which.get_width()):
-                    for y in range(which.get_height()):
-                        if which.get_at((x,y)) == oldCol:
-                            which.set_at((x,y),col)
-                which.unlock()
+                which = self.flood_fill(which,col)
 
 class Editor:
     '''a namespace to hold editor data'''
@@ -3217,6 +3338,9 @@ class Boss(Enemy):
     def run_misc(self):
         pass
 
+    def draw_misc(self):
+        pass
+
 class Fireball_Boss(Boss):
     def __init__(self,xpos,ypos,img,maxXvel=8,maxYvel=50,health=800,gravity=0.981):
         super().__init__(xpos,ypos,img,maxXvel,maxYvel,health,gravity)
@@ -3249,9 +3373,9 @@ class Fireball_Boss(Boss):
                     self.visionResults[i] = True
                     break
 
-        for i in range(5):
-            col = colour.green if self.visionResults[i] else colour.red
-            sendToCam(self.vision[i], "hitbox", col)
+        #for i in range(5):
+        #    col = colour.green if self.visionResults[i] else colour.red
+        #    sendToCam(self.vision[i], "hitbox", col)
 
     def pathfind(self):
         self.canSeeTarget = self.get_dist(self.target) < self.maxTargetDist
@@ -3290,6 +3414,65 @@ class Fireball_Boss(Boss):
         else:
             self.xvel = self.xvel * 0.8
 
+class Final_Boss(Boss):
+    def __init__(self,xpos,ypos,imgs,maxXvel=8,maxYvel=50,health=2000,gravity=0.981):
+        super().__init__(xpos,ypos,imgs[0],maxXvel,maxYvel,health,gravity)
+        self.name = "final"
+        self.fire_image = imgs[1]
+        self.fireInterval = 50
+        self.chargeInterval = 50
+        self.maxCharge = 100
+        self.summon = False
+        self.lastStanding = []
+        self.eyes = [Light(SCREEN,self.xpos-220,self.ypos-170,50,(255,0,0),25),
+                     Light(SCREEN,self.xpos-100,self.ypos-190,50,(255,0,0),25)]
+
+    def make_projectile(self):
+        self.projectiles.append(Boss_Laser(self.xpos-self.width//2,self.ypos-self.height//2,self.target,self.fire_image))
+
+    def wepaon_sequence(self):
+        if self.state == 1: # passive
+            if now() - self.lastStateChange > self.stateChangeInterval:
+                self.lastStateChange = now()
+                self.state += 1
+
+        elif self.state == 2: #charging
+            self.vulnerable = True
+            if now() - self.lastCharge > self.chargeInterval:
+                self.lastCharge = now()
+                self.charge += 1
+            if self.charge >= self.maxCharge:
+                self.state += 1
+                self.lastStanding = self.target[:]
+
+        elif self.state == 3:
+            target = get_screen_pos([self.target[0], self.target[1], 0, 0])[:2]
+            me = get_screen_pos([self.xpos - self.width // 2, self.ypos - self.height // 2, 0, 0])[:2]
+            pygame.draw.line(SCREEN, colour.red, target, me, width=self.charge)
+
+            self.firing = False
+            if now() - self.lastFire > self.fireInterval:
+                self.lastFire = now()
+                if self.charge > 0:
+                    self.charge -= 1
+                    self.firing = True
+                else:
+                    self.state = 1
+                    self.summon = True
+                    self.lastStateChange = now()
+                    self.vulnerable = False
+
+    def draw_laser(self):
+        target = get_screen_pos([self.target[0], self.target[1], 0, 0])[:2]
+        me = get_screen_pos([self.xpos - self.width // 2, self.ypos - self.height // 2, 0, 0])[:2]
+        if self.state == 2:
+            pygame.draw.line(SCREEN, colour.red, target, me, width=self.charge // 3)
+        if self.state == 3:
+            pygame.draw.line(SCREEN, colour.red, target, me, width=self.charge)
+
+    def draw_misc(self):
+        self.draw_laser()
+
 class Boss_Missile:
     def __init__(self,xpos,ypos,target):
         self.xpos = xpos
@@ -3315,10 +3498,8 @@ class Boss_Missile:
             self.xpos += (self.speed * math.cos(math.radians(playerBearing)))
             self.ypos += (self.speed * math.sin(math.radians(playerBearing)))
 
-
         if self.life > 8000:
             self.needsDel = True
-
 
         self.history.insert(0,(self.xpos,self.ypos))
         while len(self.history) > 20:
@@ -3360,7 +3541,6 @@ class Boss_Fireball:
         while len(self.trail) > 15:
             self.trail.pop(0)
 
-
         if now() - self.birth > 3000:
             self.needsDel = True
 
@@ -3370,6 +3550,90 @@ class Boss_Fireball:
         for i in range(len(self.trail)):
             pygame.draw.rect(SCREEN, self.col,
                 get_screen_pos((self.trail[i][0] - self.size // 2, self.trail[i][1] - self.size // 2, i, i)))
+
+class Boss_Laser:
+    def __init__(self,xpos,ypos,target,image):
+        self.xpos = xpos
+        self.ypos = ypos
+        self.target = target
+        self.speed = 40
+        self.angle = self.get_angle(self.target) % 360
+        self.inc = self.get_sides(self.angle, self.speed)
+        self.needsDel = False
+        self.image = pygame.transform.rotate(image,-self.angle)
+        self.trail = []
+        self.width,self.height = self.image.get_size()
+
+    def tick(self):
+        self.xpos += self.inc[0]
+        self.ypos += self.inc[1]
+        self.trail.append(Fizz_Particle(self.xpos+self.width//2,self.ypos+self.height//2,(100,0,0)))
+
+    def get_angle(self,pos):
+        dx = self.xpos - pos[0]
+        dy = self.ypos - pos[1]
+        return math.degrees(math.atan2(dy,dx))+180
+
+    def get_sides(self,angle,dist):
+        h = dist * math.cos(math.radians(angle))
+        v = dist * math.sin(math.radians(angle))
+        return h,v
+
+    def draw(self):
+        # pos = get_screen_pos([self.xpos,self.ypos,0,0])
+        # sendToCam(self.image.get_rect(),col=colour.white,name="hitbox")
+        # pygame.draw.circle(SCREEN,(255,0,0),(pos[0],pos[1]),10)
+        for p in self.trail.copy():
+            p.tick()
+            p.draw()
+            if p.finished:
+                self.trail.remove(p)
+        blitToCam(self.image,(self.xpos,self.ypos))
+
+class Family(Enemy):
+    def __init__(self,xpos,ypos,maxXvel,maxYvel,img,type):
+        super().__init__(xpos,ypos,maxXvel,maxYvel,img=img)
+        self.type = type
+        self.maxTargetDist = 1000
+
+    def pathfind(self):
+        dist = self.get_dist(self.target)
+        self.canSeeTarget = self.maxTargetDist > dist > 50
+        if self.canSeeTarget:
+            if self.target[0] > self.center[0]:
+                self.xvel += self.xInc
+                #print(">")
+            elif self.target[0] < self.center[0]:
+                self.xvel -= self.xInc
+                #print("<")
+        else:
+            self.xvel = self.xvel * 0.8
+
+    def update_hitboxes(self):
+        if self.type == 1:
+            self.hitbox.whole = toRect([self.xpos - 20, self.ypos - 19, 40, 40])
+            self.hitbox.top = toRect([self.xpos - 10, self.ypos - 19, 20, 5])
+            self.hitbox.bottom = toRect([self.xpos - 8, self.ypos + 15, 16, 15])
+            self.hitbox.left = toRect([self.xpos - 20, self.ypos - 20, 5, 39])
+            self.hitbox.right = toRect([self.xpos + 15, self.ypos - 20, 5, 39])
+
+            self.hitbox.actWhole = toRect(get_actual_pos(self.hitbox.whole))
+            self.hitbox.actTop = toRect(get_actual_pos(self.hitbox.top))
+            self.hitbox.actBottom = toRect(get_actual_pos(self.hitbox.bottom))
+            self.hitbox.actLeft = toRect(get_actual_pos(self.hitbox.left))
+            self.hitbox.actRight = toRect(get_actual_pos(self.hitbox.right))
+        else:
+            self.hitbox.whole = toRect([self.xpos - 15, self.ypos - 15, 30, 30])
+            self.hitbox.top = toRect([self.xpos - 10, self.ypos - 10, 20, 5])
+            self.hitbox.bottom = toRect([self.xpos - 10, self.ypos + 12, 20, 15])
+            self.hitbox.left = toRect([self.xpos - 15, self.ypos - 15, 5, 25])
+            self.hitbox.right = toRect([self.xpos + 10, self.ypos - 15, 5, 25])
+
+            self.hitbox.actWhole = toRect(get_actual_pos(self.hitbox.whole))
+            self.hitbox.actTop = toRect(get_actual_pos(self.hitbox.top))
+            self.hitbox.actBottom = toRect(get_actual_pos(self.hitbox.bottom))
+            self.hitbox.actLeft = toRect(get_actual_pos(self.hitbox.left))
+            self.hitbox.actRight = toRect(get_actual_pos(self.hitbox.right))
 
 class Animation:
     def __init__(self,xpos,ypos):
@@ -3579,6 +3843,24 @@ class Charge_Up(Animation):
         pygame.draw.rect(SCREEN,self.col,get_screen_pos(rect))
         if self.frame >= 10:
             self.frame = 10
+            self.finished = True
+
+class Fizz_Particle(Animation):
+    def __init__(self,xpos,ypos,col):
+        super().__init__(xpos,ypos)
+        self.col = col
+        self.name = "fizz"
+        self.interval = 50
+
+    def draw(self):
+        m = 10 - self.frame
+        try:
+            rect = [self.xpos+random.randint(-m,m),self.ypos+random.randint(-m,m),m,m]
+        except:
+            rect = [self.xpos,self.ypos,1,1]
+
+        pygame.draw.rect(SCREEN,self.col,get_screen_pos(rect))
+        if self.frame >= 10:
             self.finished = True
 
 class Here(Animation):
@@ -4071,6 +4353,7 @@ def reposition_boxes():
     game.editor.buildRect.move_to(SCRW-100,SCRH-100)
     game.editor.linkRect.move_to(SCRW-100,SCRH-200)
     game.editor.enemyTypeRect.move_to(SCRW-100,SCRH-300)
+    game.editor.beltDirectorRect.move_to(SCRW-100,SCRH-400)
     game.hats.resize()
     game.joystick.resize(SCRW,SCRH)
 
@@ -4380,203 +4663,213 @@ greenSlider.sliderPos = greenSlider.xpos + ((g/255) * greenSlider.length)
 blueSlider.sliderPos = blueSlider.xpos + ((b/255) * blueSlider.length)
 
 SCREEN.fill(colour.black)
+game.update_gradient()
 
 ##################################################
 if not game.misc.hasinit:
     game.animations.append(First_Story())
 
-while True:
-    uptime = pygame.time.get_ticks()
-    u.tick()
-    tick_boxes()
-    game.check_achievements(announce=True)
-    game.stats.playTime = game.stats.startTime + now()
+async def main():
+    global uptime
+    while True:
+        uptime = pygame.time.get_ticks()
+        u.tick()
+        tick_boxes()
+        game.check_achievements(announce=True)
+        game.stats.playTime = game.stats.startTime + now()
 
-    SCREEN.blit(SCREEN,game.camerashake.get())
+        SCREEN.blit(SCREEN,game.camerashake.get())
 
-    pygame.display.flip()
-    SCREEN.fill(game.misc.menuCol)
-    clock.tick(TICKRATE)
+        pygame.display.flip()
+        SCREEN.fill(game.misc.menuCol)
+        clock.tick(TICKRATE)
 
-    handle_events(move=game.enableMovement)
-
-    if game.sound.enabled:
-        game.sound.run_music()
-
-    #game.log(f"{now()}: ({game.player.xpos},{game.player.ypos})")
-    if game.scene == "init":
-        game.camerashake.tick()
-        game.misc.hasinit = True
-        game.draw_animations()
-        if not game.contains_animation("story"):
-            game.scene = "control"
-
-    elif game.scene == "story":
-        game.draw_animations()
-        if not game.contains_animation("story"):
-            game.scene = "ingame"
-
-    elif game.scene == "menu":
-        game.draw_gradient()
-        game.camerashake.val = 0
-
-    elif game.scene == "control":
-        game.draw_gradient()
-        if keyboardBox.isPressed():
-            game.settings.controls = "keyboard"
-        if touchscreenBox.isPressed():
-            game.settings.controls = "touchscreen"
-
-        if game.settings.controls == "keyboard":
-            SCREEN.blit(img.image["body_with_eye"], (SCRW * 0.7, SCRH * 0.52))
-        elif game.settings.controls == "touchscreen":
-            SCREEN.blit(img.image["body_with_eye"], (SCRW * 0.3, SCRH * 0.52))
-
-    elif game.scene == "ingame":
-        check_story()
-        game.camerashake.tick()
-        game.draw_gradient()
-        game.generate_cloud()
-        game.tick_enemies()
-        game.tick()
-        game.correct_mobs() # this one
-        game.tick_player()
-        #game.correct_mobs()  # temp?
-        game.player.update_hitboxes()
-        if game.player.ypos > 5000 or game.player.isDead:
-            game.player.isDead = True
-            #game.trigger_death()
-        if game.player.atFinish:
-            if not game.contains_animation("transition"):
-                if game.misc.wasTransition:
-                    game.update_level(next=True)
-                    game.reset_player()
-                    #print("finished level")
-                else:
-                    game.animations.append(Transition())
-            #game.trigger_death(die=False)
-        levelIDXBox.update_message("Level " + str(game.levelIDX))
-
-
-        game.graphics.set_camera(game.player)
-        game.handle_bomb_entities()
-        game.draw_bg()
-        if game.enableMovement:
-            game.graphics.draw_player(game.player)
-            if game.player.hat != -1:
-                hat = game.img.image["hats"][game.player.hat]
-                SCREEN.blit(hat,((SCRW - hat.get_width()) // 2, ((SCRH - hat.get_height()) // 2) - game.player.height + 6))
-        game.draw_enemies()
-        game.draw_animations()
-        game.draw_lighting()
-#        sendToCam(list(game.player.hitbox.bottom),"hitbox",col=colour.white)
-#        sendToCam(list(game.player.hitbox.left),"hitbox",col=colour.white)
-#        sendToCam(list(game.player.hitbox.right),"hitbox",col=colour.white)
-#        sendToCam(list(game.player.hitbox.top),"hitbox",col=colour.white)
-#        sendToCam(list(game.player.hitbox.whole),"hitbox",col=colour.white)
-
-        if game.chaos.actions[game.chaos.action] == "invert screen":
-            invt = pygame.transform.flip(SCREEN,flip_x=True,flip_y=True)
-            SCREEN.blit(invt,(0,0))
-
-        if game.chaos.actions[game.chaos.action] == "wonky":
-            invt = pygame.transform.rotate(SCREEN,-10)
-            SCREEN.blit(invt,(-50,-15))
-
-        if game.chaos.actions[game.chaos.action] == "greyscale":
-            pygame.transform.grayscale(SCREEN,dest_surface=SCREEN)
-
-        run_joystick()
-
-    elif game.scene == "editor":
-        game.draw_gradient()
-        game.generate_cloud()
-        selectedBox.update_message(game.editor.selected.capitalize())
-        levelIDXBox.update_message("Level " + str(game.levelIDX))
-        mpos = game.editor.mouseRect
-        mapped = get_actual_pos(mpos)
-        acx,acy = ((mapped[0]//50)*50,(mapped[1]//50)*50)
-        coordBox.update_message(( str(acx) + "," + str(acy) ))
-        editorModeBox.update_message(f"{game.editor.mode.capitalize()}")
-
-
-        game.draw_grid()
-        #game.run_editor() # temp
-        game.tick_button_platforms()
-        game.draw_bg()
-        game.check_selected()
-        game.run_editor()
-        game.player.free_cam()
-
-        game.draw_lighting()
-
-        game.draw_editor_menu()
-
-    elif game.scene == "levels":
-        game.draw_gradient()
-        levelSlots.tick()
-        levelSlots.check()
-        if levelSlots.pressed:
-            game.levelIDX = levelSlots.idx
-            levelSlots.pressed = False
-            game.scene = "ingame"
-            game.update_level(next=False)
-            game.reset_player()
-            game.chaos.reset()
-
-    elif game.scene == "settings":
-        game.draw_gradient()
-        #collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox
-        starCount = 0
-        for key in game.stats.stars:
-            starCount += len(game.stats.stars[key])
-
-        ms = game.stats.playTime# + now())
-        secs = (ms // 1000) % 60
-        mins = (ms // (1000*60)) % 60
-        hours = (ms // (1000*60*60))
-        uptime = f"Time played: {hours}h {mins}m {secs}s"
-            
-        collectedStarsBox.update_message(f"Stars collected: {starCount}")
-        enemiesDefeatedBox.update_message(f"Enemies defeated: {game.stats.enemiesKilled}")
-        deathCountBox.update_message(f"Number of deaths: {game.stats.deaths}")
-        uptimeBox.update_message(uptime)
-
-        th = img.image["tick"].get_height()/2
-
-        if game.settings.showFPS:
-            SCREEN.blit(img.image["tick"],(showFPSBox.pos[0]+showFPSBox.textRect[2]/2,showFPSBox.pos[1]-th))
+        handle_events(move=game.enableMovement)
 
         if game.sound.enabled:
-            SCREEN.blit(img.image["tick"],(soundBox.pos[0]+soundBox.textRect[2]/2,soundBox.pos[1]-th))
+            game.sound.run_music()
 
-        if game.settings.annoyingBosses:
-            SCREEN.blit(img.image["tick"],(annoyingBossesBox.pos[0]+annoyingBossesBox.textRect[2]/2,annoyingBossesBox.pos[1]-th))
+        #game.log(f"{now()}: ({game.player.xpos},{game.player.ypos})")
+        if game.scene == "init":
+            game.camerashake.tick()
+            game.misc.hasinit = True
+            game.draw_animations()
+            if not game.contains_animation("story"):
+                game.scene = "control"
 
-        if game.settings.highResTextures:
-            SCREEN.blit(img.image["tick"],(highResTexturesBox.pos[0]+highResTexturesBox.textRect[2]/2,highResTexturesBox.pos[1]-th))
+        elif game.scene == "story":
+            game.draw_animations()
+            if not game.contains_animation("story"):
+                game.scene = "ingame"
 
-        if game.settings.chaosMode:
-            SCREEN.blit(img.image["tick"],(chaosModeBox.pos[0] + chaosModeBox.textRect[2] / 2, chaosModeBox.pos[1] - th))
+        elif game.scene == "menu":
+            game.draw_gradient()
+            game.camerashake.val = 0
 
-        if game.misc.showTimer:
-            SCREEN.blit(img.image["tick"],(showTimerBox.pos[0]+showTimerBox.textRect[2]/2,showTimerBox.pos[1]-th))
+        elif game.scene == "control":
+            game.draw_gradient()
+            if keyboardBox.isPressed():
+                game.settings.controls = "keyboard"
+            if touchscreenBox.isPressed():
+                game.settings.controls = "touchscreen"
 
-    elif game.scene == "achievements":
-        game.draw_gradient()
-        game.achievements.update_slots()
-        game.achievements.show()
+            if game.settings.controls == "keyboard":
+                SCREEN.blit(img.image["body_with_eye"], (SCRW * 0.7, SCRH * 0.52))
+            elif game.settings.controls == "touchscreen":
+                SCREEN.blit(img.image["body_with_eye"], (SCRW * 0.3, SCRH * 0.52))
 
-    elif game.scene == "customise":
-        game.draw_gradient()
-        for slider in [redSlider,greenSlider,blueSlider]:
-            slider.get_presses()
-            slider.draw()
-            slider.update()
+        elif game.scene == "ingame":
+            check_story()
+            game.camerashake.tick()
+            game.draw_gradient()
+            game.generate_cloud()
+            game.tick_enemies()
+            game.run_story_events()
+            game.tick()
+            game.correct_mobs()
+            game.tick_player()
+            game.player.update_hitboxes()
+            if game.player.ypos > 5000 or game.player.isDead:
+                game.player.isDead = True
+                #game.trigger_death()
+            if game.player.atFinish:
+                if not game.contains_animation("transition"):
+                    if game.misc.wasTransition:
+                        game.update_level(next=True)
+                        game.reset_player()
+                        #print("finished level")
+                    else:
+                        game.animations.append(Transition())
+                #game.trigger_death(die=False)
+            levelIDXBox.update_message("Level " + str(game.levelIDX))
 
-        col = (redSlider.get()*255,greenSlider.get()*255,blueSlider.get()*255)
-        pygame.draw.rect(SCREEN,col,(SCRW*0.2,SCRH*0.4,SCRH*0.2,SCRH*0.2))
 
-        game.hats.draw()
-        game.hats.check()
-        game.player.hat = game.hats.selected
+            game.graphics.set_camera(game.player)
+            game.handle_bomb_entities()
+            game.draw_bg()
+            game.draw_enemies()
+            #for mob in game.family:
+            #    for hb in [mob.hitbox.whole,mob.hitbox.bottom,mob.hitbox.right,mob.hitbox.left,mob.hitbox.top,]:
+            #        sendToCam(hb,col=colour.white,name="hitbox")
+            if game.enableMovement:
+                game.graphics.draw_player(game.player)
+                if game.player.hat != -1:
+                    hat = game.img.image["hats"][game.player.hat]
+                    SCREEN.blit(hat,((SCRW - hat.get_width()) // 2, ((SCRH - hat.get_height()) // 2) - game.player.height + 6))
+            game.draw_animations()
+            game.draw_lighting()
+    #        sendToCam(list(game.player.hitbox.bottom),"hitbox",col=colour.white)
+    #        sendToCam(list(game.player.hitbox.left),"hitbox",col=colour.white)
+    #        sendToCam(list(game.player.hitbox.right),"hitbox",col=colour.white)
+    #        sendToCam(list(game.player.hitbox.top),"hitbox",col=colour.white)
+    #        sendToCam(list(game.player.hitbox.whole),"hitbox",col=colour.white)
+
+            if game.chaos.actions[game.chaos.action] == "invert screen":
+                invt = pygame.transform.flip(SCREEN,flip_x=True,flip_y=True)
+                SCREEN.blit(invt,(0,0))
+
+            if game.chaos.actions[game.chaos.action] == "wonky":
+                invt = pygame.transform.rotate(SCREEN,-10)
+                SCREEN.blit(invt,(-50,-15))
+
+            if game.chaos.actions[game.chaos.action] == "greyscale":
+                pygame.transform.grayscale(SCREEN,dest_surface=SCREEN)
+
+            run_joystick()
+
+        elif game.scene == "editor":
+            game.draw_gradient()
+            game.generate_cloud()
+            selectedBox.update_message(game.editor.selected.capitalize())
+            levelIDXBox.update_message("Level " + str(game.levelIDX))
+            mpos = game.editor.mouseRect
+            mapped = get_actual_pos(mpos)
+            acx,acy = ((mapped[0]//50)*50,(mapped[1]//50)*50)
+            coordBox.update_message(( str(acx) + "," + str(acy) ))
+            editorModeBox.update_message(f"{game.editor.mode.capitalize()}")
+
+
+            game.draw_grid()
+            #game.run_editor() # temp
+            game.tick_button_platforms()
+            game.draw_bg()
+            game.check_selected()
+            game.run_editor()
+            game.player.free_cam()
+
+            game.draw_lighting()
+
+            game.draw_editor_menu()
+
+        elif game.scene == "levels":
+            game.draw_gradient()
+            levelSlots.tick()
+            levelSlots.check()
+            if levelSlots.pressed:
+                game.levelIDX = levelSlots.idx
+                levelSlots.pressed = False
+                game.scene = "ingame"
+                game.update_level(next=False)
+                game.reset_player()
+                game.chaos.reset()
+
+        elif game.scene == "settings":
+            game.draw_gradient()
+            #collectedStarsBox,enemiesDefeatedBox,deathCountBox,uptimeBox
+            starCount = 0
+            for key in game.stats.stars:
+                starCount += len(game.stats.stars[key])
+
+            ms = game.stats.playTime# + now())
+            secs = (ms // 1000) % 60
+            mins = (ms // (1000*60)) % 60
+            hours = (ms // (1000*60*60))
+            uptime = f"Time played: {hours}h {mins}m {secs}s"
+
+            collectedStarsBox.update_message(f"Stars collected: {starCount}")
+            enemiesDefeatedBox.update_message(f"Enemies defeated: {game.stats.enemiesKilled}")
+            deathCountBox.update_message(f"Number of deaths: {game.stats.deaths}")
+            uptimeBox.update_message(uptime)
+
+            th = img.image["tick"].get_height()/2
+
+            if game.settings.showFPS:
+                SCREEN.blit(img.image["tick"],(showFPSBox.pos[0]+showFPSBox.textRect[2]/2,showFPSBox.pos[1]-th))
+
+            if game.sound.enabled:
+                SCREEN.blit(img.image["tick"],(soundBox.pos[0]+soundBox.textRect[2]/2,soundBox.pos[1]-th))
+
+            if game.settings.annoyingBosses:
+                SCREEN.blit(img.image["tick"],(annoyingBossesBox.pos[0]+annoyingBossesBox.textRect[2]/2,annoyingBossesBox.pos[1]-th))
+
+            if game.settings.highResTextures:
+                SCREEN.blit(img.image["tick"],(highResTexturesBox.pos[0]+highResTexturesBox.textRect[2]/2,highResTexturesBox.pos[1]-th))
+
+            if game.settings.chaosMode:
+                SCREEN.blit(img.image["tick"],(chaosModeBox.pos[0] + chaosModeBox.textRect[2] / 2, chaosModeBox.pos[1] - th))
+
+            if game.misc.showTimer:
+                SCREEN.blit(img.image["tick"],(showTimerBox.pos[0]+showTimerBox.textRect[2]/2,showTimerBox.pos[1]-th))
+
+        elif game.scene == "achievements":
+            game.draw_gradient()
+            game.achievements.update_slots()
+            game.achievements.show()
+
+        elif game.scene == "customise":
+            game.draw_gradient()
+            for slider in [redSlider,greenSlider,blueSlider]:
+                slider.get_presses()
+                slider.draw()
+                slider.update()
+
+            col = (redSlider.get()*255,greenSlider.get()*255,blueSlider.get()*255)
+            pygame.draw.rect(SCREEN,col,(SCRW*0.2,SCRH*0.4,SCRH*0.2,SCRH*0.2))
+
+            game.hats.draw()
+            game.hats.check()
+            game.player.hat = game.hats.selected
+
+        await asyncio.sleep(0)
+
+asyncio.run(main())
