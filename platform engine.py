@@ -436,6 +436,9 @@ class MiscData:
         self.menuCol = (200,200,250)
         self.gradientCols = []
 
+        self.shader = pygame.Surface((SCRW,SCRH))
+        self.shader.fill((0,0,0))
+
         self.hasTransition = False
         self.wasTransition = False
 
@@ -1144,22 +1147,11 @@ class Game:
             self.clouds[i-1].ypos = random.randint(0, SCRH)
 
     def draw_gradient(self):
-        step = 100
-        if self.chaos.actions[self.chaos.action] == "rgb":
-            colA = self.rgb.get()
-            for _ in range(20):
-                self.rgb.tick()
-            colB = self.rgb.get()
-        else:
-            colA = self.misc.bgCol[0]
-            colB = self.misc.bgCol[1]
+        leng = len(self.misc.gradientCols)
+        width = math.ceil(SCRH / leng)
+        for i in range(leng):
+            pygame.draw.rect(SCREEN, self.misc.gradientCols[i], (0, width * i, SCRW, width))
 
-
-        for i in range(step):
-            drawCol = [colA[0]+(i*((colB[0]-colA[0])/step)),
-                       colA[1]+(i*((colB[1]-colA[1])/step)),
-                       colA[2]+(i*(colB[2]-colA[2])/step)]
-            pygame.draw.rect(SCREEN,drawCol,(0,i*(SCRH/step),SCRW,step))
 
     def update_gradient(self):
         self.misc.gradientCols.clear()
@@ -2156,7 +2148,7 @@ class Game:
         for item in level["belt dir"]:
             self.beltDirections.append(item)
 
-
+        self.misc.shader.set_alpha(self.brightness)
         self.check_story_update()
         self.orient_spikes()
         self.orient_electric()
@@ -2691,10 +2683,7 @@ class Game:
             boxCopy.display()
 
     def draw_lighting(self):
-        s = pygame.Surface((SCRW,SCRH))
-        s.fill((0,0,0))
-        s.set_alpha(self.brightness)
-        SCREEN.blit(s,(0,0))
+        SCREEN.blit(self.misc.shader, (0, 0))
         for item in self.lightEntities:
             item.draw()
 
@@ -4606,6 +4595,9 @@ def handle_events(move):
             reposition_boxes()
             game.scale = min(SCRW/800,SCRH/600,)
             game.img.resize_cloud(game.scale)
+            game.misc.shader = pygame.Surface((SCRW, SCRH))
+            game.misc.shader.fill((0, 0, 0))
+            game.misc.shader.set_alpha(game.brightness)
 
         elif event.type == pygame.MOUSEWHEEL:
             #print(f"{event.y}")
